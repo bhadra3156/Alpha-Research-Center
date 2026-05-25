@@ -1,0 +1,17 @@
+name: Daily AlphaResearch Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * 1-5'  # 06:00 UTC Monday-Friday
+  workflow_dispatch:        # Manual trigger
+
+jobs:
+  daily-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger AlphaResearch Scan
+        run: |
+          curl -X POST "${{ secrets.BACKEND_URL }}/scan" \
+            -H "X-API-Key: ${{ secrets.BACKEND_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"market": "BOTH", "notify_telegram": true}'
