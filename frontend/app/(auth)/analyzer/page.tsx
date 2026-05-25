@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 function VerdictBadge({pass, label}:{pass:boolean,label?:string}) {
   return <span style={{display:"inline-flex",alignItems:"center",gap:"4px",padding:"3px 10px",borderRadius:"20px",fontSize:"11px",fontWeight:"700",background:pass?"rgba(16,185,129,0.15)":"rgba(239,68,68,0.15)",color:pass?"#10b981":"#ef4444",border:"1px solid "+(pass?"rgba(16,185,129,0.3)":"rgba(239,68,68,0.3)")}}>{pass?"?":"?"} {label||(pass?"PASS":"FAIL")}</span>;
@@ -82,7 +82,7 @@ function AnalyzerContent() {
     setError(null);
     setData(null);
     try {
-      const res = await fetch("http://localhost:8000/analyze/" + t.toUpperCase() + "?market=" + m);
+      const res = await fetch("https://alpha-research-center-backend.onrender.com/analyze/" + t.toUpperCase() + "?market=" + m);
       if (!res.ok) throw new Error("API error " + res.status);
       const json: AnalysisData = await res.json();
       setData(json);

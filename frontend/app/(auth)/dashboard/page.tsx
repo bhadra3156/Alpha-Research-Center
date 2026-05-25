@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 function Navigation() {
   return (
@@ -64,7 +64,7 @@ export default function Dashboard() {
     const start = Date.now();
     const timer = setInterval(() => setElapsed(Math.floor((Date.now()-start)/1000)), 1000);
     try {
-      const res = await fetch("http://localhost:8000/scan/", {
+      const res = await fetch("https://alpha-research-center-backend.onrender.com/scan/", {
         method: "POST", headers: {"Content-Type":"application/json"},
         body: JSON.stringify({market, notify_telegram: false}),
       });
