@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect } from "react";
 
 function Navigation() {
@@ -108,7 +108,7 @@ export default function Portfolio() {
     saveToLocal(updated);
   };
 
-  const totalDeployed = positions.reduce((s,p) => s + (p.entry_price * p.shares), 0);
+  const totalDeployed = positions.reduce((s,p) => s + (p.entry_price * (p.shares||0)), 0);
   const inp = (label:string, key:string, type="text", placeholder="") => (
     <div style={{display:"flex",flexDirection:"column",gap:"4px"}}>
       <label style={{fontSize:"10px",fontWeight:"700",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</label>
@@ -219,7 +219,7 @@ export default function Portfolio() {
                 </thead>
                 <tbody>
                   {positions.map(p=>{
-                    const posSize = p.entry_price * p.shares;
+                    const posSize = p.entry_price * (p.shares||0);
                     return (
                       <tr key={p.id} style={{borderBottom:"1px solid rgba(30,41,59,0.4)"}}
                         onMouseEnter={e=>{e.currentTarget.style.background="rgba(245,158,11,0.04)";}}
@@ -229,11 +229,11 @@ export default function Portfolio() {
                         </td>
                         <td style={{padding:"10px 12px",color:steel,fontSize:"11px"}}>{p.market==="US"?"🇺🇸":"🇬🇧"} {p.market}</td>
                         <td style={{padding:"10px 12px",color:steel,fontFamily:"monospace",fontSize:"11px"}}>{p.entry_date}</td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:"#f1f5f9",fontWeight:"600"}}>${p.entry_price.toFixed(2)}</td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:steel}}>{p.shares}</td>
+                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:"#f1f5f9",fontWeight:"600"}}>${(p.entry_price||0).toFixed(2)}</td>
+                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:steel}}>{(p.shares||0)}</td>
                         <td style={{padding:"10px 12px",fontFamily:"monospace",color:green,fontWeight:"600"}}>${posSize.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:p.stop_level>0?red:steel}}>{p.stop_level>0?`$${p.stop_level.toFixed(2)}`:"—"}</td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:p.target_price>0?green:steel}}>{p.target_price>0?`$${p.target_price.toFixed(2)}`:"—"}</td>
+                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:p.stop_level>0?red:steel}}>{p.stop_level>0?`$${(p.stop_level||0).toFixed(2)}`:"—"}</td>
+                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:p.target_price>0?green:steel}}>{p.target_price>0?`$${(p.target_price||0).toFixed(2)}`:"—"}</td>
                         <td style={{padding:"10px 12px",color:steel,fontSize:"11px",maxWidth:"120px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.notes||"—"}</td>
                         <td style={{padding:"10px 12px"}}>
                           <button onClick={()=>handleDelete(p.id)}
