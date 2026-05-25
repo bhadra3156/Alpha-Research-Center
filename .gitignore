@@ -52,3 +52,11 @@ htmlcov/
 # Misc
 *.pem
 .vercel
+
+# Environment files
+backend/.env
+frontend/.env.local
+*.pyc
+__pycache__/
+.next/
+node_modules/
