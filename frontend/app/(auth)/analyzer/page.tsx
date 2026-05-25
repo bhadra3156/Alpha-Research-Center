@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import Navigation from "@/components/common/Navigation";
-import { VerdictBadge, StageBadge, ConvictionMeter, DataQualityFlag } from "@/components/common/VerdictBadge";
+import Navigation from "../../components/common/Navigation";
+import { VerdictBadge, StageBadge, ConvictionMeter, DataQualityFlag } from "../../components/common/VerdictBadge";
 
 interface AnalysisData {
   ticker: string;

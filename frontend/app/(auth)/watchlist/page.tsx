@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 import { useState, useEffect } from "react";
-import Navigation from "@/components/common/Navigation";
+import Navigation from "../../components/common/Navigation";
 
 interface WatchlistItem {
   ticker: string;

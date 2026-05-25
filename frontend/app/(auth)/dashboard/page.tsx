@@ -1,6 +1,6 @@
 ﻿"use client";
 import { useState } from "react";
-import Navigation from "@/components/common/Navigation";
+import Navigation from "../../components/common/Navigation";
 import { useRouter } from "next/navigation";
 
 interface Stock {
