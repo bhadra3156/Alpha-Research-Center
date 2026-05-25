@@ -22,98 +22,92 @@ function Navigation() {
 }
 
 interface Position {
-  id: string; ticker: string; company_name: string; market: string;
-  entry_date: string; entry_price: number; shares: number;
-  stop_level: number; target_price: number; notes: string;
-  status: string; pnl_pct?: number; current_price?: number;
+  id: string;
+  ticker: string;
+  market: string;
+  entry_date: string;
+  entry_price: number;
+  shares: number;
+  stop_level: number;
+  target_price: number;
+  notes: string;
 }
 
-const API = "https://alpha-research-center-backend.onrender.com";
-const gold = "#f59e0b"; const green = "#10b981"; const red = "#ef4444"; const steel = "#94a3b8";
+const gold = "#f59e0b";
+const green = "#10b981";
+const red = "#ef4444";
+const steel = "#94a3b8";
+
+function n(v: unknown): number {
+  const x = parseFloat(String(v));
+  return isNaN(x) ? 0 : x;
+}
+
+function fmt(v: number): string {
+  if (!v || isNaN(v)) return "$0.00";
+  return "$" + v.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
 
 export default function Portfolio() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{text:string,ok:boolean}|null>(null);
-  const [form, setForm] = useState({
-    ticker:"", market:"US", entry_date: new Date().toISOString().split("T")[0],
-    entry_price:"", shares:"", stop_level:"", target_price:"", notes:""
-  });
+  const [ticker, setTicker] = useState("");
+  const [market, setMarket] = useState("US");
+  const [entryDate, setEntryDate] = useState(new Date().toISOString().split("T")[0]);
+  const [entryPrice, setEntryPrice] = useState("");
+  const [shares, setShares] = useState("");
+  const [stopLevel, setStopLevel] = useState("");
+  const [targetPrice, setTargetPrice] = useState("");
+  const [notes, setNotes] = useState("");
 
-  // Load positions from localStorage (persistent without backend)
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("alpharesearch_positions");
+      const saved = localStorage.getItem("alpha_positions");
       if (saved) setPositions(JSON.parse(saved));
     } catch(e) {}
   }, []);
 
-  const saveToLocal = (newPositions: Position[]) => {
-    localStorage.setItem("alpharesearch_positions", JSON.stringify(newPositions));
-    setPositions(newPositions);
+  const persist = (list: Position[]) => {
+    setPositions(list);
+    try { localStorage.setItem("alpha_positions", JSON.stringify(list)); } catch(e) {}
   };
 
-  const handleSave = async () => {
-    if (!form.ticker || !form.entry_price || !form.shares) {
-      setMessage({text:"Please fill in Ticker, Entry Price and Shares", ok:false});
-      return;
-    }
-    setSaving(true);
-    setMessage(null);
+  const handleSave = () => {
+    if (!ticker.trim()) { setMessage({text:"Please enter a ticker symbol", ok:false}); return; }
+    if (!entryPrice || n(entryPrice) === 0) { setMessage({text:"Please enter entry price", ok:false}); return; }
+    if (!shares || n(shares) === 0) { setMessage({text:"Please enter number of shares", ok:false}); return; }
 
-    const newPos: Position = {
+    setSaving(true);
+    const pos: Position = {
       id: Date.now().toString(),
-      ticker: form.ticker.toUpperCase(),
-      company_name: form.ticker.toUpperCase(),
-      market: form.market,
-      entry_date: form.entry_date,
-      entry_price: parseFloat(form.entry_price),
-      shares: parseFloat(form.shares),
-      stop_level: parseFloat(form.stop_level) || 0,
-      target_price: parseFloat(form.target_price) || 0,
-      notes: form.notes,
-      status: "OPEN",
+      ticker: ticker.trim().toUpperCase(),
+      market,
+      entry_date: entryDate,
+      entry_price: n(entryPrice),
+      shares: n(shares),
+      stop_level: n(stopLevel),
+      target_price: n(targetPrice),
+      notes: notes.trim(),
     };
 
-    // Try backend first, fall back to localStorage
-    try {
-      const res = await fetch(`${API}/portfolio/`, {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify(newPos),
-      });
-      if (res.ok) {
-        const saved = await res.json();
-        const updated = [...positions, saved];
-        saveToLocal(updated);
-        setMessage({text:`✅ ${newPos.ticker} position saved!`, ok:true});
-      } else {
-        throw new Error("Backend error");
-      }
-    } catch(e) {
-      // Save locally if backend fails
-      const updated = [...positions, newPos];
-      saveToLocal(updated);
-      setMessage({text:`✅ ${newPos.ticker} saved locally!`, ok:true});
-    }
-
-    setForm({ticker:"",market:"US",entry_date:new Date().toISOString().split("T")[0],entry_price:"",shares:"",stop_level:"",target_price:"",notes:""});
+    persist([...positions, pos]);
+    setMessage({text:`✅ ${pos.ticker} — ${pos.shares} shares @ ${fmt(pos.entry_price)} saved!`, ok:true});
+    setTicker(""); setEntryPrice(""); setShares(""); setStopLevel(""); setTargetPrice(""); setNotes("");
     setShowForm(false);
     setSaving(false);
   };
 
-  const handleDelete = (id: string) => {
-    const updated = positions.filter(p => p.id !== id);
-    saveToLocal(updated);
-  };
+  const remove = (id: string) => persist(positions.filter(p => p.id !== id));
 
-  const totalDeployed = positions.reduce((s,p) => s + (p.entry_price * (p.shares||0)), 0);
-  const inp = (label:string, key:string, type="text", placeholder="") => (
+  const totalDeployed = positions.reduce((s, p) => s + (n(p.entry_price) * n(p.shares)), 0);
+
+  const inp = (label: string, value: string, setter: (v:string)=>void, type="text", placeholder="") => (
     <div style={{display:"flex",flexDirection:"column",gap:"4px"}}>
       <label style={{fontSize:"10px",fontWeight:"700",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</label>
-      <input type={type} value={(form as any)[key]} onChange={e=>setForm({...form,[key]:e.target.value})} placeholder={placeholder}
-        style={{padding:"10px 12px",borderRadius:"8px",border:"1px solid #1e293b",background:"#0f172a",color:"#f1f5f9",fontSize:"13px",outline:"none"}}/>
+      <input type={type} value={value} onChange={e=>setter(e.target.value)} placeholder={placeholder}
+        style={{padding:"10px 12px",borderRadius:"8px",border:"1px solid #1e293b",background:"#0f172a",color:"#f1f5f9",fontSize:"13px",outline:"none",width:"100%",boxSizing:"border-box"}}/>
     </div>
   );
 
@@ -121,6 +115,7 @@ export default function Portfolio() {
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#060820 0%,#0d1145 50%,#060820 100%)"}}>
       <Navigation/>
       <div style={{maxWidth:"1200px",margin:"0 auto",padding:"72px 20px 40px"}}>
+
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"20px"}}>
           <div>
             <h1 style={{fontSize:"22px",fontWeight:"900",color:"#f1f5f9",marginBottom:"2px"}}>
@@ -128,17 +123,16 @@ export default function Portfolio() {
             </h1>
             <p style={{color:"#475569",fontSize:"12px"}}>{positions.length} open positions · Track entries, stops and targets</p>
           </div>
-          <button onClick={()=>setShowForm(!showForm)}
+          <button onClick={()=>{setShowForm(!showForm);setMessage(null);}}
             style={{padding:"10px 20px",borderRadius:"10px",fontWeight:"700",fontSize:"13px",cursor:"pointer",border:"none",background:`linear-gradient(135deg,${gold},#d97706)`,color:"#060820"}}>
             + Add Position
           </button>
         </div>
 
-        {/* Stats */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"10px",marginBottom:"16px"}}>
           {[
             {label:"Open Positions", value:String(positions.length), color:green},
-            {label:"Total Deployed", value:`$${totalDeployed.toLocaleString(undefined,{maximumFractionDigits:0})}`, color:gold},
+            {label:"Total Deployed", value:"$"+totalDeployed.toLocaleString(undefined,{maximumFractionDigits:0}), color:gold},
             {label:"Markets", value:positions.length>0?[...new Set(positions.map(p=>p.market))].join(" · "):"—", color:steel},
           ].map(s=>(
             <div key={s.label} style={{background:"linear-gradient(145deg,#0f172a,#1e293b)",border:"1px solid #1e293b",borderRadius:"12px",padding:"14px 18px"}}>
@@ -148,44 +142,39 @@ export default function Portfolio() {
           ))}
         </div>
 
-        {/* Message */}
         {message && (
-          <div style={{padding:"10px 14px",borderRadius:"8px",marginBottom:"12px",fontSize:"12px",
-            background:message.ok?"rgba(16,185,129,0.1)":"rgba(239,68,68,0.1)",
-            color:message.ok?green:red,border:`1px solid ${message.ok?"rgba(16,185,129,0.3)":"rgba(239,68,68,0.3)"}`}}>
+          <div style={{padding:"10px 14px",borderRadius:"8px",marginBottom:"12px",fontSize:"12px",background:message.ok?"rgba(16,185,129,0.1)":"rgba(239,68,68,0.1)",color:message.ok?green:red,border:`1px solid ${message.ok?"rgba(16,185,129,0.3)":"rgba(239,68,68,0.3)"}`}}>
             {message.text}
           </div>
         )}
 
-        {/* Add Form */}
         {showForm && (
           <div style={{background:"linear-gradient(145deg,#0f172a,#1e293b)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:"14px",padding:"20px",marginBottom:"16px"}}>
             <h3 style={{color:"#f1f5f9",fontSize:"14px",fontWeight:"700",marginBottom:"16px"}}>📋 New Position</h3>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"12px",marginBottom:"12px"}}>
-              {inp("Ticker *","ticker","text","NVDA")}
+              {inp("Ticker *", ticker, setTicker, "text", "NVDA")}
               <div style={{display:"flex",flexDirection:"column",gap:"4px"}}>
                 <label style={{fontSize:"10px",fontWeight:"700",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Market *</label>
-                <select value={form.market} onChange={e=>setForm({...form,market:e.target.value})}
+                <select value={market} onChange={e=>setMarket(e.target.value)}
                   style={{padding:"10px 12px",borderRadius:"8px",border:"1px solid #1e293b",background:"#0f172a",color:"#f1f5f9",fontSize:"13px"}}>
                   <option value="US">🇺🇸 US</option>
                   <option value="UK">🇬🇧 UK</option>
                 </select>
               </div>
-              {inp("Entry Date *","entry_date","date")}
-              {inp("Entry Price *","entry_price","number","0.00")}
-              {inp("Shares *","shares","number","100")}
-              {inp("Stop Level","stop_level","number","0.00")}
-              {inp("Target Price","target_price","number","0.00")}
+              {inp("Entry Date *", entryDate, setEntryDate, "date")}
+              {inp("Entry Price *", entryPrice, setEntryPrice, "number", "215.33")}
+              {inp("Shares *", shares, setShares, "number", "100")}
+              {inp("Stop Level", stopLevel, setStopLevel, "number", "195.00")}
+              {inp("Target Price", targetPrice, setTargetPrice, "number", "260.00")}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:"4px",marginBottom:"16px"}}>
               <label style={{fontSize:"10px",fontWeight:"700",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Notes</label>
-              <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Thesis, setup notes..."
-                style={{padding:"10px 12px",borderRadius:"8px",border:"1px solid #1e293b",background:"#0f172a",color:"#f1f5f9",fontSize:"13px",minHeight:"60px",resize:"vertical"}}/>
+              <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Thesis, setup notes, catalyst..."
+                style={{padding:"10px 12px",borderRadius:"8px",border:"1px solid #1e293b",background:"#0f172a",color:"#f1f5f9",fontSize:"13px",minHeight:"60px",resize:"vertical",width:"100%",boxSizing:"border-box"}}/>
             </div>
             <div style={{display:"flex",gap:"8px"}}>
               <button onClick={handleSave} disabled={saving}
-                style={{padding:"10px 24px",borderRadius:"8px",fontWeight:"700",fontSize:"13px",cursor:saving?"not-allowed":"pointer",border:"none",
-                  background:saving?"rgba(245,158,11,0.4)":`linear-gradient(135deg,${gold},#d97706)`,color:"#060820"}}>
+                style={{padding:"10px 24px",borderRadius:"8px",fontWeight:"700",fontSize:"13px",cursor:"pointer",border:"none",background:`linear-gradient(135deg,${gold},#d97706)`,color:"#060820"}}>
                 {saving?"Saving...":"💾 Save Position"}
               </button>
               <button onClick={()=>{setShowForm(false);setMessage(null);}}
@@ -196,7 +185,6 @@ export default function Portfolio() {
           </div>
         )}
 
-        {/* Positions Table */}
         <div style={{background:"linear-gradient(145deg,#0f172a,#1e293b)",border:"1px solid #1e293b",borderRadius:"14px",overflow:"hidden"}}>
           <div style={{padding:"12px 16px",borderBottom:"1px solid #1e293b"}}>
             <span style={{fontWeight:"700",color:"#f1f5f9",fontSize:"13px"}}>Open Positions</span>
@@ -218,8 +206,12 @@ export default function Portfolio() {
                   </tr>
                 </thead>
                 <tbody>
-                  {positions.map(p=>{
-                    const posSize = p.entry_price * (p.shares||0);
+                  {positions.map(p => {
+                    const ep = n(p.entry_price);
+                    const sh = n(p.shares);
+                    const sl = n(p.stop_level);
+                    const tp = n(p.target_price);
+                    const posSize = ep * sh;
                     return (
                       <tr key={p.id} style={{borderBottom:"1px solid rgba(30,41,59,0.4)"}}
                         onMouseEnter={e=>{e.currentTarget.style.background="rgba(245,158,11,0.04)";}}
@@ -229,15 +221,15 @@ export default function Portfolio() {
                         </td>
                         <td style={{padding:"10px 12px",color:steel,fontSize:"11px"}}>{p.market==="US"?"🇺🇸":"🇬🇧"} {p.market}</td>
                         <td style={{padding:"10px 12px",color:steel,fontFamily:"monospace",fontSize:"11px"}}>{p.entry_date}</td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:"#f1f5f9",fontWeight:"600"}}>${(p.entry_price||0).toFixed(2)}</td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:steel}}>{(p.shares||0)}</td>
+                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:"#f1f5f9",fontWeight:"600"}}>{fmt(ep)}</td>
+                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:steel}}>{sh.toLocaleString()}</td>
                         <td style={{padding:"10px 12px",fontFamily:"monospace",color:green,fontWeight:"600"}}>${posSize.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:p.stop_level>0?red:steel}}>{p.stop_level>0?`$${(p.stop_level||0).toFixed(2)}`:"—"}</td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:p.target_price>0?green:steel}}>{p.target_price>0?`$${(p.target_price||0).toFixed(2)}`:"—"}</td>
+                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:sl>0?red:steel}}>{sl>0?fmt(sl):"—"}</td>
+                        <td style={{padding:"10px 12px",fontFamily:"monospace",color:tp>0?green:steel}}>{tp>0?fmt(tp):"—"}</td>
                         <td style={{padding:"10px 12px",color:steel,fontSize:"11px",maxWidth:"120px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.notes||"—"}</td>
                         <td style={{padding:"10px 12px"}}>
-                          <button onClick={()=>handleDelete(p.id)}
-                            style={{padding:"4px 10px",borderRadius:"6px",fontSize:"10px",fontWeight:"600",cursor:"pointer",border:"1px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.1)",color:red}}>
+                          <button onClick={()=>remove(p.id)}
+                            style={{padding:"4px 10px",borderRadius:"6px",fontSize:"10px",fontWeight:"600",cursor:"pointer",border:`1px solid rgba(239,68,68,0.3)`,background:"rgba(239,68,68,0.1)",color:red}}>
                             Remove
                           </button>
                         </td>
@@ -249,6 +241,7 @@ export default function Portfolio() {
             </div>
           )}
         </div>
+
         <div style={{marginTop:"24px",textAlign:"center",color:"#1e293b",fontSize:"10px"}}>
           AlphaResearch v1.0 · Not financial advice · For institutional use only
         </div>
