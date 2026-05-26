@@ -1,29 +1,5 @@
 "use client";
-import React from "react";
-
-function Navigation() {
-  return (
-    <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:50,background:"rgba(6,8,32,0.95)",backdropFilter:"blur(12px)",borderBottom:"1px solid rgba(245,158,11,0.2)",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px",height:"56px"}}>
-      <a href="/dashboard" style={{display:"flex",alignItems:"center",gap:"10px",textDecoration:"none"}}>
-        <div style={{width:"32px",height:"32px",borderRadius:"8px",background:"linear-gradient(135deg,#f59e0b,#d97706)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"900",fontSize:"16px",color:"#060820"}}>a</div>
-        <span style={{fontWeight:"800",fontSize:"16px",color:"#f1f5f9"}}>Alpha<span style={{color:"#f59e0b"}}>Research</span></span>
-      </a>
-      <div style={{display:"flex",gap:"4px"}}>
-        {[["dashboard","Dashboard"],["analyzer","Analyzer"],["watchlist","Watchlist"],["portfolio","Portfolio"],["journal","Journal"]].map(([href,label])=>(
-          <a key={href} href={"/"+href} style={{display:"flex",alignItems:"center",padding:"6px 14px",borderRadius:"8px",textDecoration:"none",fontSize:"13px",color:"#94a3b8"}}>
-            {label}
-          </a>
-        ))}
-      </div>
-      <div style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"12px",color:"#10b981"}}>
-        <div style={{width:"6px",height:"6px",borderRadius:"50%",background:"#10b981"}}></div>
-        <span>LIVE</span>
-      </div>
-    </nav>
-  );
-}
-
-import { useState } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface Stock {
@@ -39,47 +15,53 @@ interface Stock {
   pe_ratio: number; sector: string;
 }
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = React.useState(false);
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    }).catch(() => {
-      const el = document.createElement("textarea");
-      el.value = text;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    });
-  };
-  return (
-    <button onClick={handleCopy}
-      title="Copy to clipboard"
-      style={{
-        padding:"5px 12px", borderRadius:"7px", fontSize:"11px", fontWeight:"600",
-        cursor:"pointer", display:"flex", alignItems:"center", gap:"5px",
-        border:"1px solid rgba(148,163,184,0.25)",
-        background: copied ? "rgba(16,185,129,0.15)" : "rgba(148,163,184,0.08)",
-        color: copied ? "#10b981" : "#94a3b8",
-        transition:"all 0.2s"
-      }}>
-      {copied ? (
-        <><span>✓</span><span>Copied!</span></>
-      ) : (
-        <><span style={{fontSize:"13px"}}>⧉</span><span>Copy</span></>
-      )}
-    </button>
-  );
-}
-
 interface ScanResult {
   scan_id: string; scan_date: string; market: string;
   stocks_scanned: number; qualifying_count: number;
   qualifying_stocks: Stock[]; scan_duration_ms: number;
+}
+
+const BACKEND = "https://alpha-research-center-backend.onrender.com";
+
+function addToWatchlist(s: Stock) {
+  try {
+    const existing = JSON.parse(localStorage.getItem("alpha_watchlist_v3") || "[]");
+    if (existing.find((i: any) => i.ticker === s.ticker)) {
+      alert(s.ticker + " already in watchlist"); return;
+    }
+    const item = {
+      id: Date.now().toString(), ticker: s.ticker, market: s.market || "US",
+      sector: s.sector || "", theme: "", added: new Date().toISOString().split("T")[0],
+      notes: `${s.technical_stage} | Conv:${s.conviction_score}/10 | Entry:${s.entry_zone}`,
+      score: s.conviction_score, c1_pass: s.check1_pass, c2_pass: s.check2_pass,
+      stage: s.technical_stage, rsi: s.rsi14 || 0, entry_zone: s.entry_zone || "", graduated: false
+    };
+    localStorage.setItem("alpha_watchlist_v3", JSON.stringify([...existing, item]));
+    alert("✅ " + s.ticker + " added to watchlist!");
+  } catch(e) { alert("Failed to add to watchlist"); }
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = React.useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 2500);
+    }).catch(() => {
+      const el = document.createElement("textarea");
+      el.value = text; document.body.appendChild(el); el.select();
+      document.execCommand("copy"); document.body.removeChild(el);
+      setCopied(true); setTimeout(() => setCopied(false), 2500);
+    });
+  };
+  return (
+    <button onClick={handleCopy}
+      style={{background: copied ? "rgba(34,197,94,0.15)" : "transparent",
+        border: `1px solid ${copied ? "#22c55e44" : "#253345"}`,
+        color: copied ? "#22c55e" : "#4a5568", fontSize: "9px", padding: "3px 8px",
+        cursor: "pointer", letterSpacing: "0.05em", display:"flex", alignItems:"center", gap:"4px"}}>
+      {copied ? "✓ COPIED" : "⧉ COPY"}
+    </button>
+  );
 }
 
 export default function Dashboard() {
@@ -87,29 +69,25 @@ export default function Dashboard() {
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [market] = useState("US");
-  const [minConv, setMinConv] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [sortBy, setSortBy] = useState<string>("conviction");
   const [sortDir, setSortDir] = useState<"desc"|"asc">("desc");
   const [stageFilter, setStageFilter] = useState("ALL");
-
-  const gold = "#f59e0b"; const green = "#10b981"; const red = "#ef4444";
-  const blue = "#60a5fa"; const steel = "#94a3b8"; const purple = "#a78bfa";
+  const [convFilter, setConvFilter] = useState(0);
 
   const runScan = async () => {
     setScanning(true); setError(null);
     const start = Date.now();
     const timer = setInterval(() => setElapsed(Math.floor((Date.now()-start)/1000)), 1000);
     try {
-      const res = await fetch("https://alpha-research-center-backend.onrender.com/scan/", {
-        method: "POST", headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({market, notify_telegram: false}),
+      const res = await fetch(`${BACKEND}/scan/`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({market:"US", notify_telegram:false}),
       });
-      if (!res.ok) throw new Error("API error " + res.status);
+      if (!res.ok) throw new Error("Backend error " + res.status);
       setResult(await res.json());
     } catch(e: unknown) {
-      setError(e instanceof Error ? e.message : "Scan failed");
+      setError(e instanceof Error ? e.message : "Scan failed — backend may be waking up (50s)");
     } finally { clearInterval(timer); setElapsed(0); setScanning(false); }
   };
 
@@ -119,309 +97,285 @@ export default function Dashboard() {
   };
 
   const stocks = (result?.qualifying_stocks||[])
-    .filter(s => minConv===0 || s.conviction_score>=minConv)
+    .filter(s => convFilter===0 || s.conviction_score>=convFilter)
     .filter(s => stageFilter==="ALL" || s.technical_stage.includes(stageFilter))
     .sort((a,b) => {
-      const v = (s:Stock) => sortBy==="conviction" ? s.conviction_score : sortBy==="price" ? s.price : sortBy==="mktcap" ? s.market_cap : sortBy==="rsi" ? s.rsi14 : s.conviction_score;
-      return sortDir==="desc" ? v(b)-v(a) : v(a)-v(b);
+      const v=(s:Stock)=>sortBy==="conviction"?s.conviction_score:sortBy==="price"?s.price:sortBy==="rsi"?s.rsi14:s.conviction_score;
+      return sortDir==="desc"?v(b)-v(a):v(a)-v(b);
     });
 
-  const fmt = (v:number, sym="$") => {
-    if (!v) return "N/A";
-    if (v>=1e12) return `${sym}${(v/1e12).toFixed(2)}T`;
-    if (v>=1e9)  return `${sym}${(v/1e9).toFixed(1)}B`;
-    if (v>=1e6)  return `${sym}${(v/1e6).toFixed(0)}M`;
-    return `${sym}${v.toFixed(2)}`;
+  const fmtMkt = (v:number) => {
+    if (!v) return "—";
+    if (v>=1e12) return `$${(v/1e12).toFixed(1)}T`;
+    if (v>=1e9) return `$${(v/1e9).toFixed(0)}B`;
+    return `$${(v/1e6).toFixed(0)}M`;
   };
 
-  const pct = (v:number) => v!==0 ? `${v>0?"+":""}${(v*100).toFixed(1)}%` : "N/A";
-  const convColor = (s:number) => s>=9?green:s>=7?gold:s>=5?"#fb923c":red;
-  const stageColor = (st:string) => st.includes("Stage 2")?green:st.includes("Stage 1")?blue:red;
-  const stageBg = (st:string) => st.includes("Stage 2")?"rgba(16,185,129,0.12)":st.includes("Stage 1")?"rgba(96,165,250,0.12)":"rgba(239,68,68,0.12)";
-  const rsiColor = (r:number) => r<30?red:r>75?red:r>60?gold:green;
-  const SortArrow = ({col}:{col:string}) => <span style={{color:sortBy===col?gold:"#334155"}}>{sortBy===col?(sortDir==="desc"?" ↓":" ↑"):" ·"}</span>;
-  const addToWatchlist = (s: Stock) => {
-    try {
-      const existing = JSON.parse(localStorage.getItem("alpha_watchlist_v3") || "[]");
-      if (existing.find((i: any) => i.ticker === s.ticker)) {
-        alert(s.ticker + " is already in your watchlist!");
-        return;
-      }
-      const item = {
-        id: Date.now().toString(),
-        ticker: s.ticker,
-        market: s.market || "US",
-        sector: s.sector || "",
-        theme: "",
-        notes: s.technical_stage + " | Conv: " + s.conviction_score + "/10 | Entry: " + s.entry_zone,
-        added: new Date().toISOString().split("T")[0],
-        score: s.conviction_score,
-        c1_pass: s.check1_pass,
-        c2_pass: s.check2_pass,
-        stage: s.technical_stage,
-        rsi: s.rsi14 || 0,
-        entry_zone: s.entry_zone || "",
-        graduated: false
-      };
-      localStorage.setItem("alpha_watchlist_v3", JSON.stringify([...existing, item]));
-      alert("✅ " + s.ticker + " added to watchlist!");
-    } catch(e) {
-      alert("Failed to add to watchlist");
-    }
-  };
+  const convColor = (s:number) => s>=9?"#22c55e":s>=7?"#f59e0b":s>=5?"#60a5fa":"#ef4444";
+  const convBar = (s:number) => s>=9?"#22c55e":s>=7?"#f59e0b":s>=5?"#60a5fa":"#ef4444";
+  const stageColor = (st:string) => st.includes("Stage 2")?"#22c55e":st.includes("Stage 1")?"#60a5fa":"#ef4444";
+  const stageShort = (st:string) => st.includes("Stage 2")?"STG2":st.includes("Stage 1")?"STG1":"STG4";
+  const rowBg = (s:Stock, i:number) => !s.check1_pass||!s.check2_pass?"#0a0c14":i%2===0?"#0a1420":"#080e18";
+  const rowLeftBar = (s:Stock) => convColor(s.conviction_score);
 
-
-  const avgConv = stocks.length?(stocks.reduce((s,x)=>s+x.conviction_score,0)/stocks.length).toFixed(1):"—";
   const stage2 = stocks.filter(s=>s.technical_stage.includes("Stage 2")).length;
-  const gcCount = stocks.filter(s=>s.golden_cross).length;
   const highConv = stocks.filter(s=>s.conviction_score>=8).length;
+  const avgConv = stocks.length ? (stocks.reduce((s,x)=>s+x.conviction_score,0)/stocks.length).toFixed(1) : "—";
+
+  const copyText = stocks.map(s=>`${s.ticker} $${s.price.toFixed(2)} | ${s.technical_stage} | Conv:${s.conviction_score}/10 | Entry:${s.entry_zone} | RSI:${s.rsi14}`).join("\n");
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",timeZone:"America/New_York"}) + " EST";
+  const dateStr = now.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}).toUpperCase();
+
+  const SortArrow = ({col}:{col:string}) => (
+    <span style={{color:sortBy===col?"#f59e0b":"#253345",marginLeft:"3px"}}>
+      {sortBy===col?(sortDir==="desc"?"▼":"▲"):"⇅"}
+    </span>
+  );
 
   return (
-    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#060820 0%,#0d1145 50%,#060820 100%)"}}>
-      <Navigation/>
-      <div style={{maxWidth:"1700px",margin:"0 auto",padding:"68px 16px 40px"}}>
+    <div style={{minHeight:"100vh",background:"#060d18",fontFamily:"'SF Mono','Fira Code','Consolas',monospace"}}>
 
-        <div style={{marginBottom:"16px"}}>
-          <h1 style={{fontSize:"22px",fontWeight:"900",color:"#f1f5f9",marginBottom:"2px"}}>
-            Institutional Equity <span style={{color:gold}}>Command Center</span>
-          </h1>
-          <p style={{color:"#334155",fontSize:"11px"}}>Full US market scan · 2-Check qualification · Fundamental + Technical phase analysis</p>
+      {/* TOP BAR */}
+      <div style={{position:"fixed",top:0,left:0,right:0,zIndex:50,background:"#04080f",borderBottom:"1px solid #1a2535",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0",height:"44px"}}>
+        <div style={{display:"flex",alignItems:"center",height:"100%"}}>
+          <div style={{background:"#f59e0b",color:"#000",fontSize:"11px",fontWeight:"700",padding:"0 14px",height:"100%",display:"flex",alignItems:"center",letterSpacing:"0.08em"}}>
+            ALPHA<span style={{opacity:0.6}}>RESEARCH</span>
+          </div>
+          {[["dashboard","COMMAND CTR"],["analyzer","ANALYZER"],["watchlist","WATCHLIST"],["portfolio","PORTFOLIO"],["journal","JOURNAL"]].map(([href,label])=>(
+            <a key={href} href={"/"+href}
+              style={{display:"flex",alignItems:"center",height:"100%",padding:"0 16px",textDecoration:"none",fontSize:"10px",letterSpacing:"0.06em",
+                borderBottom:href==="dashboard"?"2px solid #f59e0b":"2px solid transparent",
+                color:href==="dashboard"?"#f59e0b":"#4a5568",
+                fontWeight:href==="dashboard"?"700":"400"}}>
+              {label}
+            </a>
+          ))}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:"20px",paddingRight:"16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"5px"}}>
+            <div style={{width:"5px",height:"5px",borderRadius:"50%",background:"#22c55e"}}></div>
+            <span style={{color:"#22c55e",fontSize:"9px",letterSpacing:"0.08em"}}>LIVE</span>
+          </div>
+          <span style={{color:"#253345",fontSize:"9px"}}>NYSE • NASDAQ</span>
+          <span style={{color:"#253345",fontSize:"9px"}}>{dateStr} {timeStr}</span>
+        </div>
+      </div>
+
+      <div style={{paddingTop:"44px"}}>
+
+        {/* STAT STRIP */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",borderBottom:"1px solid #1a2535"}}>
+          {[
+            {label:"UNIVERSE",value:result?String(result.stocks_scanned):"—",sub:"stocks scanned",color:"#e2e8f0"},
+            {label:"QUALIFYING",value:result?String(result.qualifying_count):"—",sub:"pass all checks",color:"#22c55e"},
+            {label:"STAGE 2",value:result?String(stage2):"—",sub:"markup phase",color:"#f59e0b"},
+            {label:"HIGH CONV",value:result?String(highConv):"—",sub:"score 8–10",color:"#60a5fa"},
+            {label:"AVG CONV",value:result?avgConv:"—",sub:"out of 10",color:"#a78bfa"},
+            {label:"SCAN TIME",value:result?`${(result.scan_duration_ms/1000).toFixed(1)}s`:"—",sub:"async parallel",color:"#94a3b8"},
+          ].map((s,i)=>(
+            <div key={s.label} style={{padding:"10px 14px",borderRight:i<5?"1px solid #1a2535":"none",background:"#060d18"}}>
+              <div style={{color:"#374151",fontSize:"9px",letterSpacing:"0.08em",marginBottom:"3px"}}>{s.label}</div>
+              <div style={{color:s.color,fontSize:"20px",fontWeight:"700",lineHeight:"1"}}>{s.value}</div>
+              <div style={{color:"#374151",fontSize:"9px",marginTop:"2px"}}>{s.sub}</div>
+            </div>
+          ))}
         </div>
 
-        {result && (
-          <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:"8px",marginBottom:"12px"}}>
-            {[
-              {label:"Universe",   value:String(result.stocks_scanned)+" stocks", color:blue},
-              {label:"Qualifying", value:String(result.qualifying_count)+" gems",  color:green},
-              {label:"Stage 2",    value:String(stage2)+" markup",                 color:gold},
-              {label:"Golden X",   value:String(gcCount)+" crosses",               color:purple},
-              {label:"High Conv",  value:String(highConv)+" (8+)",                 color:"#fb923c"},
-              {label:"Avg Conv",   value:avgConv+"/10",                            color:"#f1f5f9"},
-            ].map(s=>(
-              <div key={s.label} style={{background:"linear-gradient(145deg,#0f172a,#1e293b)",border:"1px solid #1e293b",borderRadius:"10px",padding:"10px 14px"}}>
-                <div style={{fontSize:"15px",fontWeight:"800",color:s.color,fontFamily:"monospace"}}>{s.value}</div>
-                <div style={{fontSize:"10px",color:"#475569",textTransform:"uppercase",letterSpacing:"0.05em",marginTop:"1px"}}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div style={{background:"linear-gradient(145deg,#0f172a,#1e293b)",border:"1px solid #1e293b",borderRadius:"12px",padding:"12px 16px",marginBottom:"12px",display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}}>
-          <div style={{display:"flex",gap:"4px"}}>
-            {[["ALL","All"],["Stage 2","Stage 2"],["Stage 1","Stage 1"]].map(([v,l])=>(
+        {/* CONTROL BAR */}
+        <div style={{background:"#060d18",borderBottom:"1px solid #1a2535",padding:"8px 14px",display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}}>
+          <div style={{display:"flex",gap:"1px"}}>
+            {[["ALL","ALL"],["Stage 2","STG2"],["Stage 1","STG1"]].map(([v,l])=>(
               <button key={v} onClick={()=>setStageFilter(v)}
-                style={{padding:"5px 12px",borderRadius:"7px",fontSize:"11px",fontWeight:"600",cursor:"pointer",border:"1px solid",
-                  background:stageFilter===v?"rgba(16,185,129,0.15)":"transparent",
-                  color:stageFilter===v?green:"#64748b",
-                  borderColor:stageFilter===v?"rgba(16,185,129,0.35)":"#1e293b"}}>
+                style={{padding:"4px 12px",border:`1px solid ${stageFilter===v?"#22c55e44":"#1a2535"}`,
+                  background:stageFilter===v?"#162030":"transparent",
+                  color:stageFilter===v?"#22c55e":"#374151",
+                  fontSize:"9px",letterSpacing:"0.06em",cursor:"pointer"}}>
                 {l}
               </button>
             ))}
           </div>
-          <div style={{display:"flex",gap:"4px"}}>
-            {[[0,"All"],[9,"🔥 9+"],[8,"⚡ 8+"],[7,"📊 7+"]].map(([v,l])=>(
-              <button key={String(v)} onClick={()=>setMinConv(Number(v))}
-                style={{padding:"5px 12px",borderRadius:"7px",fontSize:"11px",fontWeight:"600",cursor:"pointer",border:"1px solid",
-                  background:minConv===v?"rgba(245,158,11,0.15)":"transparent",
-                  color:minConv===v?gold:"#64748b",
-                  borderColor:minConv===v?"rgba(245,158,11,0.35)":"#1e293b"}}>
+          <div style={{width:"1px",height:"20px",background:"#1a2535"}}></div>
+          <div style={{display:"flex",gap:"1px"}}>
+            {[[0,"ALL"],[9,"9-10"],[8,"8+"],[7,"7+"]].map(([v,l])=>(
+              <button key={String(v)} onClick={()=>setConvFilter(Number(v))}
+                style={{padding:"4px 10px",border:`1px solid ${convFilter===v?"#f59e0b44":"#1a2535"}`,
+                  background:convFilter===v?"#1a0f00":"transparent",
+                  color:convFilter===v?"#f59e0b":"#374151",
+                  fontSize:"9px",letterSpacing:"0.06em",cursor:"pointer"}}>
                 {l}
               </button>
             ))}
           </div>
-          {result&&<div style={{fontSize:"11px",color:"#475569"}}>Showing <span style={{color:green,fontWeight:"700"}}>{stocks.length}</span> of {result.qualifying_count}</div>}
-          <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:"8px"}}>
-            {result&&<span style={{fontSize:"11px",color:"#334155"}}>{(result.scan_duration_ms/1000).toFixed(1)}s · {new Date(result.scan_date).toLocaleTimeString()}</span>}
-            <button onClick={runScan} disabled={scanning}
-              style={{padding:"9px 28px",borderRadius:"9px",fontWeight:"800",fontSize:"13px",cursor:scanning?"not-allowed":"pointer",border:"none",
-                background:scanning?"rgba(245,158,11,0.3)":"linear-gradient(135deg,#f59e0b,#d97706)",
-                color:"#060820",boxShadow:scanning?"none":"0 0 20px rgba(245,158,11,0.3)",minWidth:"140px"}}>
-              {scanning?`⚡ ${elapsed}s...`:"⚡ RUN SCAN"}
-            </button>
-          </div>
+          {result && (
+            <>
+              <div style={{width:"1px",height:"20px",background:"#1a2535"}}></div>
+              <span style={{color:"#374151",fontSize:"9px"}}>{stocks.length} RESULTS</span>
+            </>
+          )}
+          <div style={{flex:1}}></div>
+          {result && <CopyButton text={copyText}/>}
+          {result && <span style={{color:"#253345",fontSize:"9px"}}>{new Date(result.scan_date).toLocaleTimeString()}</span>}
+          <button onClick={runScan} disabled={scanning}
+            style={{background:scanning?"#1a1200":"#f59e0b",border:"none",
+              color:scanning?"#f59e0b":"#000",fontSize:"10px",fontWeight:"700",
+              padding:"6px 20px",cursor:scanning?"not-allowed":"pointer",letterSpacing:"0.08em",
+              boxShadow:scanning?"none":"0 0 12px rgba(245,158,11,0.3)"}}>
+            {scanning ? `⚡ SCANNING ${elapsed}s...` : "⚡  RUN SCAN"}
+          </button>
         </div>
 
-        {error&&<div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:"10px",padding:"10px 14px",marginBottom:"12px",color:red,fontSize:"12px"}}>{error}</div>}
-
-        {scanning&&(
-          <div style={{textAlign:"center",padding:"60px 0"}}>
-            <div style={{fontSize:"48px",marginBottom:"14px"}}>⚡</div>
-            <div style={{fontSize:"17px",fontWeight:"700",color:gold,marginBottom:"6px"}}>Scanning US Market...</div>
-            <div style={{color:"#475569",fontSize:"12px"}}>~200 liquid stocks · async parallel · {elapsed}s elapsed</div>
+        {/* ERROR */}
+        {error && (
+          <div style={{margin:"12px 14px",padding:"8px 12px",background:"#1a0505",border:"1px solid #ef444433",color:"#ef4444",fontSize:"10px",letterSpacing:"0.03em"}}>
+            ⚠ {error}
           </div>
         )}
 
-        {!scanning&&stocks.length>0&&(
-          <div style={{background:"linear-gradient(145deg,#0f172a,#1e293b)",border:"1px solid #1e293b",borderRadius:"12px",overflow:"hidden"}}>
-            <div style={{padding:"10px 16px",borderBottom:"1px solid #1e293b",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
-                <span style={{fontWeight:"700",color:"#f1f5f9",fontSize:"12px"}}>Qualifying Gems</span>
-                <span style={{padding:"2px 8px",borderRadius:"10px",fontSize:"10px",fontWeight:"700",background:"rgba(16,185,129,0.15)",color:green,border:"1px solid rgba(16,185,129,0.3)"}}>
-                  {stocks.length} PASS
-                </span>
-                <CopyButton text={stocks.map(s=>`${s.ticker} | $${s.price.toFixed(2)} | ${s.technical_stage} | Conv:${s.conviction_score}/10 | Entry:${s.entry_zone}`).join("\n")}/>
-              </div>
+        {/* SCANNING STATE */}
+        {scanning && (
+          <div style={{padding:"60px 0",textAlign:"center"}}>
+            <div style={{color:"#f59e0b",fontSize:"11px",letterSpacing:"0.1em",marginBottom:"8px"}}>⚡ SCANNING US MARKET</div>
+            <div style={{color:"#22c55e",fontSize:"28px",fontWeight:"700",marginBottom:"8px"}}>{elapsed}s</div>
+            <div style={{color:"#253345",fontSize:"9px",letterSpacing:"0.08em"}}>~200 LIQUID US EQUITIES • ASYNC PARALLEL • 2-CHECK QUALIFICATION</div>
+            <div style={{display:"flex",justifyContent:"center",gap:"16px",marginTop:"16px"}}>
+              {["C1: FUNDAMENTALS","C2: TECHNICAL PHASE","C3: SMART MONEY"].map(c=>(
+                <div key={c} style={{padding:"4px 12px",border:"1px solid #1a2535",color:"#374151",fontSize:"9px",letterSpacing:"0.06em"}}>{c}</div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* RESULTS TABLE */}
+        {!scanning && stocks.length > 0 && (
+          <div>
+            <div style={{padding:"6px 14px",borderBottom:"1px solid #1a2535",display:"flex",alignItems:"center",gap:"8px",background:"#060d18"}}>
+              <span style={{color:"#e2e8f0",fontSize:"10px",fontWeight:"700",letterSpacing:"0.06em"}}>QUALIFYING GEMS</span>
+              <span style={{background:"#052e16",color:"#22c55e",fontSize:"9px",padding:"2px 8px",letterSpacing:"0.05em"}}>{stocks.length} PASS</span>
+              {result && <span style={{color:"#253345",fontSize:"9px",marginLeft:"auto"}}>DATA: YAHOO FINANCE v8 • {dateStr} • LATENCY: {(result.scan_duration_ms/1000).toFixed(1)}s • NOT FINANCIAL ADVICE</span>}
             </div>
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:"11px"}}>
                 <thead>
-                  <tr style={{background:"rgba(6,8,32,0.9)"}}>
-                    {[
-                      {l:"#",        w:"32px",  s:null},
-                      {l:"Ticker",   w:"80px",  s:null},
-                      {l:"Company",  w:"150px", s:null},
-                      {l:"Price",    w:"80px",  s:"price"},
-                      {l:"Chg%",     w:"60px",  s:null},
-                      {l:"Mkt Cap",  w:"90px",  s:"mktcap"},
-                      {l:"Rev Gr",   w:"70px",  s:null},
-                      {l:"Margin",   w:"65px",  s:null},
-                      {l:"PE",       w:"55px",  s:null},
-                      {l:"Stage",    w:"130px", s:null},
-                      {l:"MA50",     w:"70px",  s:null},
-                      {l:"MA200",    w:"70px",  s:null},
-                      {l:"GC",       w:"40px",  s:null},
-                      {l:"RSI",      w:"55px",  s:"rsi"},
-                      {l:"52W%",     w:"55px",  s:null},
-                      {l:"Entry Zone",w:"140px",s:null},
-                      {l:"Conv",     w:"100px", s:"conviction"},
-                      {l:"Action",   w:"80px",  s:null},
-                    ].map(h=>(
-                      <th key={h.l} onClick={()=>h.s&&handleSort(h.s)}
-                        style={{padding:"8px 10px",textAlign:"left",fontSize:"9px",fontWeight:"700",
-                          color:h.s?(sortBy===h.s?gold:"#475569"):"#334155",
-                          textTransform:"uppercase",letterSpacing:"0.06em",
-                          borderBottom:"1px solid #1e293b",whiteSpace:"nowrap",
-                          minWidth:h.w,cursor:h.s?"pointer":"default",userSelect:"none"}}>
-                        {h.l}{h.s&&<SortArrow col={h.s}/>}
-                      </th>
-                    ))}
+                  <tr style={{background:"#04080f",borderBottom:"1px solid #1a2535"}}>
+                    <th style={{padding:"6px 10px",textAlign:"left",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600",width:"28px"}}>#</th>
+                    <th style={{padding:"6px 10px",textAlign:"left",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600",width:"100px"}}>TICKER</th>
+                    <th style={{padding:"6px 8px",textAlign:"left",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600"}}>COMPANY</th>
+                    <th onClick={()=>handleSort("price")} style={{padding:"6px 8px",textAlign:"right",color:sortBy==="price"?"#f59e0b":"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600",cursor:"pointer",whiteSpace:"nowrap"}}>PRICE<SortArrow col="price"/></th>
+                    <th style={{padding:"6px 8px",textAlign:"right",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600"}}>CHG%</th>
+                    <th style={{padding:"6px 8px",textAlign:"right",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600"}}>MKT CAP</th>
+                    <th style={{padding:"6px 8px",textAlign:"center",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600"}}>C1</th>
+                    <th style={{padding:"6px 8px",textAlign:"center",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600"}}>C2</th>
+                    <th style={{padding:"6px 8px",textAlign:"center",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600"}}>STAGE</th>
+                    <th style={{padding:"6px 8px",textAlign:"center",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600"}}>MA50</th>
+                    <th style={{padding:"6px 8px",textAlign:"center",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600"}}>MA200</th>
+                    <th style={{padding:"6px 8px",textAlign:"center",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600"}}>GC</th>
+                    <th onClick={()=>handleSort("rsi")} style={{padding:"6px 8px",textAlign:"center",color:sortBy==="rsi"?"#f59e0b":"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600",cursor:"pointer",whiteSpace:"nowrap"}}>RSI<SortArrow col="rsi"/></th>
+                    <th style={{padding:"6px 8px",textAlign:"center",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600"}}>52W%</th>
+                    <th style={{padding:"6px 8px",textAlign:"left",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600"}}>ENTRY ZONE</th>
+                    <th onClick={()=>handleSort("conviction")} style={{padding:"6px 8px",textAlign:"center",color:sortBy==="conviction"?"#f59e0b":"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600",cursor:"pointer",whiteSpace:"nowrap"}}>CONV<SortArrow col="conviction"/></th>
+                    <th style={{padding:"6px 8px",textAlign:"center",color:"#253345",fontSize:"9px",letterSpacing:"0.08em",fontWeight:"600"}}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {stocks.map((s,i)=>{
-                    const isGC = s.golden_cross;
-                    const isHighConv = s.conviction_score>=8;
+                    const dimmed = !s.check1_pass || !s.check2_pass;
                     return (
                       <tr key={s.ticker}
-                        style={{borderBottom:"1px solid rgba(30,41,59,0.3)",background:isHighConv?"rgba(245,158,11,0.015)":"transparent"}}
-                        onMouseEnter={e=>{e.currentTarget.style.background="rgba(245,158,11,0.04)";}}
-                        onMouseLeave={e=>{e.currentTarget.style.background=isHighConv?"rgba(245,158,11,0.015)":"transparent";}}>
+                        style={{borderBottom:"1px solid #0d1520",background:rowBg(s,i),opacity:dimmed?0.5:1}}
+                        onMouseEnter={e=>{e.currentTarget.style.background="#0f1c2e";}}
+                        onMouseLeave={e=>{e.currentTarget.style.background=rowBg(s,i);}}>
 
-                        <td style={{padding:"9px 10px",color:"#334155",fontFamily:"monospace",fontSize:"10px"}}>{i+1}</td>
+                        <td style={{padding:"6px 10px",color:"#253345",fontSize:"9px"}}>{i+1}</td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:"5px"}}>
-                            <span style={{fontSize:"11px"}}>🇺🇸</span>
-                            <span style={{fontFamily:"monospace",fontWeight:"800",color:gold,fontSize:"12px"}}>{s.ticker}</span>
+                        <td style={{padding:"6px 10px"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
+                            <div style={{width:"3px",height:"32px",background:rowLeftBar(s),borderRadius:"1px",flexShrink:0}}></div>
+                            <div>
+                              <div style={{color:dimmed?"#4a5568":"#f59e0b",fontWeight:"700",fontSize:"12px",letterSpacing:"0.03em"}}>{s.ticker}</div>
+                              <div style={{color:"#253345",fontSize:"8px",letterSpacing:"0.05em"}}>{s.sector?s.sector.substring(0,8).toUpperCase():"—"}</div>
+                            </div>
                           </div>
-                          <div style={{fontSize:"8px",color:"#334155",marginTop:"1px"}}>{s.data_quality}</div>
                         </td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <div style={{color:"#e2e8f0",fontWeight:"500",fontSize:"11px",maxWidth:"140px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.company_name}</div>
-                          {s.sector&&<div style={{fontSize:"8px",color:"#475569",marginTop:"1px"}}>{s.sector}</div>}
+                        <td style={{padding:"6px 8px",color:dimmed?"#374151":"#94a3b8",fontSize:"10px",maxWidth:"160px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.company_name}</td>
+
+                        <td style={{padding:"6px 8px",textAlign:"right",color:dimmed?"#374151":"#e2e8f0",fontWeight:"600",fontSize:"11px"}}>${s.price.toFixed(2)}</td>
+
+                        <td style={{padding:"6px 8px",textAlign:"right",fontSize:"10px",color:s.change_pct>0?"#22c55e":s.change_pct<0?"#ef4444":"#4a5568"}}>
+                          {s.change_pct!==0?`${s.change_pct>0?"+":""}${s.change_pct.toFixed(1)}%`:"—"}
                         </td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <span style={{fontFamily:"monospace",fontWeight:"700",color:"#f1f5f9",fontSize:"12px"}}>${s.price.toFixed(2)}</span>
-                        </td>
+                        <td style={{padding:"6px 8px",textAlign:"right",color:"#374151",fontSize:"10px"}}>{fmtMkt(s.market_cap)}</td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <span style={{fontSize:"11px",fontFamily:"monospace",color:s.change_pct>0?green:s.change_pct<0?red:steel}}>
-                            {s.change_pct!==0?`${s.change_pct>0?"+":""}${s.change_pct.toFixed(2)}%`:"—"}
+                        <td style={{padding:"6px 8px",textAlign:"center"}}>
+                          <span style={{background:s.check1_pass?"#052e16":"#1a0505",color:s.check1_pass?"#22c55e":"#ef4444",fontSize:"8px",padding:"2px 5px",letterSpacing:"0.04em"}}>
+                            {s.check1_pass?"PASS":"FAIL"}
                           </span>
                         </td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <span style={{fontFamily:"monospace",color:s.market_cap>0?steel:"#334155",fontSize:"11px"}}>{fmt(s.market_cap)}</span>
-                        </td>
-
-                        <td style={{padding:"9px 10px"}}>
-                          <span style={{fontSize:"11px",fontFamily:"monospace",color:s.revenue_growth>0.15?green:s.revenue_growth>0?gold:steel}}>
-                            {s.revenue_growth!==0?pct(s.revenue_growth):"N/A"}
+                        <td style={{padding:"6px 8px",textAlign:"center"}}>
+                          <span style={{background:s.check2_pass?"#052e16":"#1a0505",color:s.check2_pass?"#22c55e":"#ef4444",fontSize:"8px",padding:"2px 5px",letterSpacing:"0.04em"}}>
+                            {s.check2_pass?"PASS":"FAIL"}
                           </span>
                         </td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <span style={{fontSize:"11px",fontFamily:"monospace",color:s.net_margin>0.15?green:s.net_margin>0?gold:steel}}>
-                            {s.net_margin!==0?`${(s.net_margin*100).toFixed(1)}%`:"N/A"}
+                        <td style={{padding:"6px 8px",textAlign:"center"}}>
+                          <span style={{color:stageColor(s.technical_stage),fontSize:"9px",letterSpacing:"0.04em",fontWeight:"600"}}>
+                            {stageShort(s.technical_stage)}
                           </span>
                         </td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <span style={{fontSize:"11px",fontFamily:"monospace",color:s.pe_ratio>0&&s.pe_ratio<30?green:s.pe_ratio>0?gold:steel}}>
-                            {s.pe_ratio>0?s.pe_ratio.toFixed(1):"N/A"}
-                          </span>
+                        <td style={{padding:"6px 8px",textAlign:"center",color:"#374151",fontSize:"9px",fontFamily:"monospace"}}>
+                          {s.ma50>0?`$${s.ma50.toFixed(0)}`:"—"}
                         </td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <span style={{padding:"2px 8px",borderRadius:"10px",fontSize:"9px",fontWeight:"600",
-                            background:stageBg(s.technical_stage),color:stageColor(s.technical_stage),
-                            border:`1px solid ${stageColor(s.technical_stage)}33`,whiteSpace:"nowrap"}}>
-                            {s.technical_stage}
-                          </span>
+                        <td style={{padding:"6px 8px",textAlign:"center",color:"#374151",fontSize:"9px",fontFamily:"monospace"}}>
+                          {s.ma200>0?`$${s.ma200.toFixed(0)}`:"—"}
                         </td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <span style={{fontFamily:"monospace",fontSize:"10px",color:s.ma50>0?steel:"#334155"}}>
-                            {s.ma50>0?`$${s.ma50.toFixed(0)}`:"N/A"}
-                          </span>
+                        <td style={{padding:"6px 8px",textAlign:"center"}}>
+                          {s.golden_cross?<span style={{color:"#22c55e",fontSize:"11px"}}>✓</span>:<span style={{color:"#1a2535"}}>—</span>}
                         </td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <span style={{fontFamily:"monospace",fontSize:"10px",color:s.ma200>0?steel:"#334155"}}>
-                            {s.ma200>0?`$${s.ma200.toFixed(0)}`:"N/A"}
-                          </span>
-                        </td>
-
-                        <td style={{padding:"9px 10px",textAlign:"center"}}>
-                          {isGC?<span style={{color:green,fontSize:"14px"}}>✓</span>:<span style={{color:"#334155",fontSize:"11px"}}>—</span>}
-                        </td>
-
-                        <td style={{padding:"9px 10px"}}>
-                          <span style={{fontFamily:"monospace",fontSize:"11px",fontWeight:"700",color:rsiColor(s.rsi14)}}>
+                        <td style={{padding:"6px 8px",textAlign:"center"}}>
+                          <span style={{fontSize:"10px",fontWeight:"600",color:s.rsi14>75?"#ef4444":s.rsi14>60?"#f59e0b":s.rsi14>40?"#22c55e":"#60a5fa"}}>
                             {s.rsi14>0?s.rsi14.toFixed(0):"—"}
                           </span>
                         </td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
-                            <div style={{width:"36px",height:"3px",background:"#1e293b",borderRadius:"2px",overflow:"hidden"}}>
-                              <div style={{height:"100%",width:`${s.range_pct}%`,background:s.range_pct>60?green:s.range_pct>40?gold:red,borderRadius:"2px"}}></div>
+                        <td style={{padding:"6px 8px",textAlign:"center"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:"3px",justifyContent:"center"}}>
+                            <div style={{width:"28px",height:"3px",background:"#1a2535",borderRadius:"1px",overflow:"hidden"}}>
+                              <div style={{height:"100%",width:`${s.range_pct}%`,background:s.range_pct>60?"#22c55e":s.range_pct>40?"#f59e0b":"#ef4444"}}></div>
                             </div>
-                            <span style={{fontSize:"10px",color:steel,fontFamily:"monospace"}}>{s.range_pct.toFixed(0)}%</span>
+                            <span style={{fontSize:"8px",color:"#374151"}}>{s.range_pct.toFixed(0)}%</span>
                           </div>
                         </td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <span style={{fontSize:"10px",color:blue,fontFamily:"monospace",whiteSpace:"nowrap"}}>{s.entry_zone}</span>
-                        </td>
+                        <td style={{padding:"6px 8px",color:"#60a5fa",fontSize:"9px",fontFamily:"monospace",whiteSpace:"nowrap"}}>{s.entry_zone||"—"}</td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-                            <span style={{fontFamily:"monospace",fontWeight:"900",fontSize:"15px",color:convColor(s.conviction_score),minWidth:"16px"}}>{s.conviction_score}</span>
-                            <div style={{flex:1,minWidth:"45px"}}>
-                              <div style={{height:"3px",background:"#1e293b",borderRadius:"2px",overflow:"hidden"}}>
-                                <div style={{height:"100%",width:`${s.conviction_score*10}%`,background:`linear-gradient(90deg,#10b981,${convColor(s.conviction_score)})`,borderRadius:"2px"}}></div>
-                              </div>
-                              <div style={{fontSize:"8px",color:"#475569",marginTop:"1px"}}>
-                                {s.conviction_score>=9?"Maximum":s.conviction_score>=8?"Very High":s.conviction_score>=7?"High":s.conviction_score>=6?"Above Avg":"Moderate"}
-                              </div>
+                        <td style={{padding:"6px 8px",textAlign:"center"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:"5px",justifyContent:"center"}}>
+                            <div style={{width:"28px",height:"3px",background:"#1a2535",borderRadius:"1px",overflow:"hidden"}}>
+                              <div style={{height:"100%",width:`${s.conviction_score*10}%`,background:convBar(s.conviction_score)}}></div>
                             </div>
+                            <span style={{color:convColor(s.conviction_score),fontWeight:"700",fontSize:"12px",minWidth:"16px"}}>{s.conviction_score}</span>
                           </div>
                         </td>
 
-                        <td style={{padding:"9px 10px"}}>
-                          <button onClick={()=>router.push("/analyzer?ticker="+s.ticker+"&market="+s.market)}
-                            style={{padding:"5px 10px",borderRadius:"6px",fontSize:"10px",fontWeight:"700",cursor:"pointer",
-                              border:"1px solid rgba(245,158,11,0.3)",background:"rgba(245,158,11,0.1)",color:gold,whiteSpace:"nowrap"}}>
-                            🔬 Analyze
+                        <td style={{padding:"6px 8px"}}>
+                          <div style={{display:"flex",gap:"3px"}}>
+                            <button onClick={()=>router.push("/analyzer?ticker="+s.ticker+"&market="+s.market)}
+                              style={{background:"transparent",border:"1px solid #253345",color:"#4a5568",fontSize:"8px",padding:"2px 6px",cursor:"pointer",letterSpacing:"0.04em"}}>
+                              VIEW
                             </button>
-                            <button
-                              onClick={() => addToWatchlist(s)}
-                              style={{padding:"4px 8px",borderRadius:"5px",fontSize:"9px",fontWeight:"700",cursor:"pointer",border:"1px solid rgba(16,185,129,0.3)",background:"rgba(16,185,129,0.1)",color:"#10b981",whiteSpace:"nowrap"}}>
-                              👁️ Watch
+                            <button onClick={()=>addToWatchlist(s)}
+                              style={{background:"transparent",border:"1px solid #1a3a1a",color:"#22c55e",fontSize:"8px",padding:"2px 6px",cursor:"pointer",letterSpacing:"0.04em"}}>
+                              +W
                             </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -429,22 +383,62 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
+
+            {/* LEGEND + DATA FOOTER */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",borderTop:"1px solid #1a2535"}}>
+              <div style={{padding:"10px 14px",borderRight:"1px solid #1a2535"}}>
+                <div style={{color:"#253345",fontSize:"8px",letterSpacing:"0.08em",marginBottom:"6px"}}>CONVICTION TIER LEGEND</div>
+                <div style={{display:"flex",flexDirection:"column",gap:"3px"}}>
+                  {[["9–10","#22c55e","MAXIMUM — C1+C2 pass, Stage 2, golden cross"],["7–8","#f59e0b","HIGH — qualifying, watch for entry"],["5–6","#60a5fa","MODERATE — Stage 1, building base"],["1–4","#ef4444","AVOID — check failure or Stage 3/4"]].map(([tier,color,desc])=>(
+                    <div key={tier} style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                      <div style={{width:"3px",height:"14px",background:color,borderRadius:"1px"}}></div>
+                      <span style={{color:color,fontSize:"9px",fontFamily:"monospace",width:"28px"}}>{tier}</span>
+                      <span style={{color:"#374151",fontSize:"9px"}}>{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{padding:"10px 14px"}}>
+                <div style={{color:"#253345",fontSize:"8px",letterSpacing:"0.08em",marginBottom:"6px"}}>COLUMN GUIDE</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"3px"}}>
+                  {[["C1","Fundamental check (revenue, margins, valuation)"],["C2","Technical phase check (Stage 1 or 2)"],["STG2","Weinstein Stage 2 Markup confirmed"],["STG1","Stage 1 Accumulation (pre-breakout)"],["GC","Golden Cross: 50-day MA > 200-day MA"],["RSI","Relative Strength Index (14-day)"],["52W%","Position within 52-week range"],["CONV","Conviction score 1–10"]].map(([k,v])=>(
+                    <div key={k} style={{display:"flex",gap:"6px"}}>
+                      <span style={{color:"#4a5568",fontSize:"8px",fontWeight:"700",minWidth:"32px"}}>{k}</span>
+                      <span style={{color:"#253345",fontSize:"8px"}}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
-        {!scanning&&!result&&(
-          <div style={{textAlign:"center",padding:"60px 0"}}>
-            <div style={{fontSize:"48px",marginBottom:"14px"}}>⚡</div>
-            <h2 style={{fontSize:"18px",fontWeight:"700",color:"#f1f5f9",marginBottom:"6px"}}>Ready to Scan US Market</h2>
-            <p style={{color:"#475569",fontSize:"12px",maxWidth:"380px",margin:"0 auto 20px"}}>
-              Scans ~200 liquid US stocks. Applies 2-Check qualification. Finds the gems.
-            </p>
+        {/* EMPTY STATE */}
+        {!scanning && !result && (
+          <div style={{padding:"80px 0",textAlign:"center"}}>
+            <div style={{color:"#1a2535",fontSize:"48px",marginBottom:"16px",fontFamily:"sans-serif"}}>⚡</div>
+            <div style={{color:"#253345",fontSize:"11px",letterSpacing:"0.1em",marginBottom:"6px"}}>COMMAND CENTER READY</div>
+            <div style={{color:"#1a2535",fontSize:"9px",letterSpacing:"0.08em",marginBottom:"24px"}}>~200 LIQUID US EQUITIES • 2-CHECK QUALIFICATION • FUNDAMENTAL + TECHNICAL</div>
+            <div style={{display:"flex",justifyContent:"center",gap:"0",maxWidth:"480px",margin:"0 auto"}}>
+              {[["CHECK 01","FUNDAMENTALS","Revenue · Margins · Valuation · PEG"],["CHECK 02","TECHNICALS","Weinstein Stage 1 or Stage 2"],["CHECK 03","CONVICTION","1–10 institutional score"]].map((c,i)=>(
+                <div key={c[0]} style={{flex:1,padding:"14px 12px",border:"1px solid #1a2535",borderRight:i<2?"none":"1px solid #1a2535",textAlign:"left"}}>
+                  <div style={{color:"#f59e0b",fontSize:"8px",letterSpacing:"0.08em",marginBottom:"4px"}}>{c[0]}</div>
+                  <div style={{color:"#374151",fontSize:"10px",fontWeight:"600",marginBottom:"3px"}}>{c[1]}</div>
+                  <div style={{color:"#253345",fontSize:"8px"}}>{c[2]}</div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        <div style={{marginTop:"24px",textAlign:"center",color:"#1e293b",fontSize:"10px"}}>
-          AlphaResearch v1.0 · Not financial advice · Data via Yahoo Finance · For institutional use only
-        </div>
+        {/* NO RESULTS */}
+        {!scanning && result && stocks.length===0 && (
+          <div style={{padding:"50px 0",textAlign:"center"}}>
+            <div style={{color:"#374151",fontSize:"10px",letterSpacing:"0.08em",marginBottom:"6px"}}>NO RESULTS MATCH FILTERS</div>
+            <div style={{color:"#253345",fontSize:"9px"}}>Adjust conviction or stage filters above</div>
+          </div>
+        )}
+
       </div>
     </div>
   );
