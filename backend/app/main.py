@@ -71,3 +71,6 @@ Be direct and institutional. No disclaimers."""
 
 from app.routers.portfolio_analysis import router as portfolio_router
 app.include_router(portfolio_router)
+
+from app.routers.portfolio_analysis import router as portfolio_router
+app.include_router(portfolio_router)
