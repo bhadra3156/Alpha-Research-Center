@@ -59,7 +59,7 @@ Write like a Goldman Sachs research note. Be specific with numbers and prices. D
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": "claude-sonnet-4-20250514",
+                    "model": "claude-sonnet-4-5-20251101",
                     "max_tokens": 4000,
                     "tools": [{"type": "web_search_20250305", "name": "web_search"}],
                     "messages": [{"role": "user", "content": prompt}]
@@ -71,3 +71,4 @@ Write like a Goldman Sachs research note. Be specific with numbers and prices. D
             return {"analysis": analysis, "status": "ok"}
     except Exception as e:
         return {"analysis": f"Error: {str(e)}", "status": "error"}
+

@@ -1,4 +1,4 @@
-﻿import anthropic
+import anthropic
 import httpx
 import json
 from typing import Dict, Any
@@ -8,9 +8,9 @@ from app.core.config import settings
 class NarrativeAI:
     """
     AI Narrative Generator with automatic fallback chain:
-    1. Claude Sonnet (Anthropic) — primary, highest quality
-    2. Groq LLaMA 3 — fast fallback, free tier
-    3. Built-in template — offline fallback, always works
+    1. Claude Sonnet (Anthropic) � primary, highest quality
+    2. Groq LLaMA 3 � fast fallback, free tier
+    3. Built-in template � offline fallback, always works
     """
 
     def __init__(self):
@@ -21,7 +21,7 @@ class NarrativeAI:
                 self.anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
                 print("NarrativeAI: Claude Sonnet ready")
             except Exception as e:
-                print(f"NarrativeAI: Claude init failed — {e}")
+                print(f"NarrativeAI: Claude init failed � {e}")
 
         # Groq config
         self.groq_api_key = getattr(settings, "groq_api_key", "") or ""
@@ -34,7 +34,7 @@ class NarrativeAI:
         if self.anthropic_client: chain.append("Claude Sonnet")
         if self.groq_available:   chain.append("Groq LLaMA 3")
         chain.append("Template fallback")
-        print(f"NarrativeAI fallback chain: {' → '.join(chain)}")
+        print(f"NarrativeAI fallback chain: {' ? '.join(chain)}")
 
     def generate_analysis(
         self,
@@ -46,22 +46,22 @@ class NarrativeAI:
     ) -> str:
         prompt = self._build_prompt(ticker, data, c1, c2, c3)
 
-        # 1️⃣ Try Claude Sonnet
+        # 1?? Try Claude Sonnet
         if self.anthropic_client:
             result = self._try_claude(prompt, ticker)
             if result:
                 return f"[Claude Sonnet]\n\n{result}"
 
-        # 2️⃣ Try Groq LLaMA 3
+        # 2?? Try Groq LLaMA 3
         if self.groq_available:
             result = self._try_groq(prompt, ticker)
             if result:
-                return f"[Groq LLaMA 3 — Fallback]\n\n{result}"
+                return f"[Groq LLaMA 3 � Fallback]\n\n{result}"
 
-        # 3️⃣ Built-in template fallback
+        # 3?? Built-in template fallback
         return self._template_fallback(ticker, data, c1, c2, c3)
 
-    # ── CLAUDE SONNET ────────────────────────────────────────────
+    # -- CLAUDE SONNET --------------------------------------------
     def _try_claude(self, prompt: str, ticker: str) -> str | None:
         try:
             message = self.anthropic_client.messages.create(
@@ -71,10 +71,10 @@ class NarrativeAI:
             )
             return message.content[0].text
         except Exception as e:
-            print(f"NarrativeAI: Claude failed for {ticker} — {e}")
+            print(f"NarrativeAI: Claude failed for {ticker} � {e}")
             return None
 
-    # ── GROQ LLAMA 3 ─────────────────────────────────────────────
+    # -- GROQ LLAMA 3 ---------------------------------------------
     def _try_groq(self, prompt: str, ticker: str) -> str | None:
         try:
             headers = {
@@ -110,10 +110,10 @@ class NarrativeAI:
                     print(f"NarrativeAI: Groq error {res.status_code} for {ticker}")
                     return None
         except Exception as e:
-            print(f"NarrativeAI: Groq failed for {ticker} — {e}")
+            print(f"NarrativeAI: Groq failed for {ticker} � {e}")
             return None
 
-    # ── PROMPT BUILDER ───────────────────────────────────────────
+    # -- PROMPT BUILDER -------------------------------------------
     def _build_prompt(
         self,
         ticker: str,
@@ -139,10 +139,10 @@ class NarrativeAI:
         fpe         = data.get("forward_pe", 0) or 0
         sector      = data.get("sector", "Unknown")
 
-        return f"""You are AlphaResearch — an elite institutional equity intelligence engine combining 
+        return f"""You are AlphaResearch � an elite institutional equity intelligence engine combining 
 Peter Lynch fundamentals, Stan Weinstein stage analysis, and smart money tracking.
 
-Analyze {ticker} ({data.get('company_name', ticker)}) — {sector} sector.
+Analyze {ticker} ({data.get('company_name', ticker)}) � {sector} sector.
 
 FUNDAMENTAL DATA:
 - Price: ${price:.2f} | Market Cap: ${mktcap/1e9:.1f}B
@@ -155,7 +155,7 @@ FUNDAMENTAL DATA:
 TECHNICAL DATA:
 - Weinstein Stage: {stage}
 - Price: ${price:.2f} | MA50: ${ma50:.2f} | MA200: ${ma200:.2f}
-- RSI(14): {rsi:.1f} — {c2.get('rsi_note', 'Neutral')}
+- RSI(14): {rsi:.1f} � {c2.get('rsi_note', 'Neutral')}
 - Golden Cross: {'YES' if c2.get('golden_cross') else 'NO'}
 - 52W Range Position: {c2.get('range_pct', 0):.0f}%
 - Entry Zone: {entry_zone}
@@ -171,21 +171,21 @@ SMART MONEY:
 
 Write a precise 3-paragraph institutional analysis:
 
-PARAGRAPH 1 — Business Quality & Fundamental Thesis:
+PARAGRAPH 1 � Business Quality & Fundamental Thesis:
 Assess revenue quality, margin profile, FCF generation, and competitive moat. 
 What is the core bull thesis for this business?
 
-PARAGRAPH 2 — Technical Setup & Timing:
+PARAGRAPH 2 � Technical Setup & Timing:
 Interpret the Weinstein stage, MA structure, RSI, and entry zone. 
 Is this an ideal entry point or should one wait for a pullback?
 
-PARAGRAPH 3 — Risk Factors & Execution Strategy:
+PARAGRAPH 3 � Risk Factors & Execution Strategy:
 Identify the top 2-3 risks. State the stop level logic and position sizing approach.
 What would invalidate the bull case?
 
 Tone: institutional, precise, no hype. Write as a senior hedge fund PM would."""
 
-    # ── TEMPLATE FALLBACK ────────────────────────────────────────
+    # -- TEMPLATE FALLBACK ----------------------------------------
     def _template_fallback(
         self,
         ticker: str,
@@ -221,7 +221,7 @@ Tone: institutional, precise, no hype. Write as a senior hedge fund PM would."""
             f"From a technical perspective, {ticker} is in a {stage_desc} per Stan Weinstein's "
             f"stage analysis methodology. "
             f"Price at ${price:.2f} with RSI(14) at {rsi:.1f} indicates "
-            f"{'healthy momentum without overextension' if 40 < rsi < 70 else 'elevated momentum — caution on chasing' if rsi >= 70 else 'oversold conditions — watch for reversal signals'}. "
+            f"{'healthy momentum without overextension' if 40 < rsi < 70 else 'elevated momentum � caution on chasing' if rsi >= 70 else 'oversold conditions � watch for reversal signals'}. "
             f"The identified entry zone of {entry_zone} represents the optimal institutional accumulation range, "
             f"offering an asymmetric risk/reward profile relative to key moving averages."
         )
@@ -231,12 +231,12 @@ Tone: institutional, precise, no hype. Write as a senior hedge fund PM would."""
             f"(2) earnings deceleration below consensus estimates which would re-rate the multiple, "
             f"and (3) technical invalidation on a sustained close below the 200-day moving average. "
             f"Smart money confirmation: {signals} signal(s) detected. "
-            f"Position sizing should reflect the {quality.lower()} fundamental quality rating — "
+            f"Position sizing should reflect the {quality.lower()} fundamental quality rating � "
             f"{'3-5% of portfolio for high conviction' if quality == 'HIGH' else '1-3% for medium conviction' if quality == 'MEDIUM' else 'monitor only until quality improves'}. "
             f"Stop placement below the most recent structural support level."
         )
 
-        ai_note = "[Template Narrative — Add ANTHROPIC_API_KEY or GROQ_API_KEY to .env for AI-generated analysis]"
+        ai_note = "[Template Narrative � Add ANTHROPIC_API_KEY or GROQ_API_KEY to .env for AI-generated analysis]"
         return f"{ai_note}\n\n{para1}\n\n{para2}\n\n{para3}"
 
 
