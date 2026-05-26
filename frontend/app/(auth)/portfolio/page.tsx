@@ -1,4 +1,5 @@
-﻿"use client";
+"use client";
+import React from "react";
 import { useState, useEffect } from "react";
 
 function Navigation() {
@@ -18,6 +19,43 @@ function Navigation() {
         <span>LIVE</span>
       </div>
     </nav>
+  );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = React.useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }).catch(() => {
+      const el = document.createElement("textarea");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
+  return (
+    <button onClick={handleCopy}
+      title="Copy to clipboard"
+      style={{
+        padding:"5px 12px", borderRadius:"7px", fontSize:"11px", fontWeight:"600",
+        cursor:"pointer", display:"flex", alignItems:"center", gap:"5px",
+        border:"1px solid rgba(148,163,184,0.25)",
+        background: copied ? "rgba(16,185,129,0.15)" : "rgba(148,163,184,0.08)",
+        color: copied ? "#10b981" : "#94a3b8",
+        transition:"all 0.2s"
+      }}>
+      {copied ? (
+        <><span>✓</span><span>Copied!</span></>
+      ) : (
+        <><span style={{fontSize:"13px"}}>⧉</span><span>Copy</span></>
+      )}
+    </button>
   );
 }
 
