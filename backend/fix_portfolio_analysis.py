@@ -1,4 +1,7 @@
-from fastapi import APIRouter
+import os
+
+# Step 1: Create the portfolio analysis router
+router_code = '''from fastapi import APIRouter
 import httpx
 import os
 
@@ -18,7 +21,7 @@ async def analyze_portfolio_deep(request: dict):
         pct = (cost / total * 100) if total > 0 else 0
         sl = h.get("stop_level", 0)
         tp = h.get("target_price", 0)
-        holdings_text += f"- {h.get('ticker')}: {h.get('shares')} shares @ ${float(h.get('entry_price',0)):.2f} | Cost: ${cost:,.0f} ({pct:.1f}%) | Stop: {'$'+str(sl) if sl else 'NONE'} | Target: {'$'+str(tp) if tp else 'NONE'} | Notes: {h.get('notes','N/A')}\n"
+        holdings_text += f"- {h.get(\'ticker\')}: {h.get(\'shares\')} shares @ ${float(h.get(\'entry_price\',0)):.2f} | Cost: ${cost:,.0f} ({pct:.1f}%) | Stop: {\'$\'+str(sl) if sl else \'NONE\'} | Target: {\'$\'+str(tp) if tp else \'NONE\'} | Notes: {h.get(\'notes\',\'N/A\')}\\n"
     
     prompt = f"""You are a senior hedge fund portfolio manager with 45 years of experience. Today is 26 May 2026.
 
@@ -67,7 +70,41 @@ Write like a Goldman Sachs research note. Be specific with numbers and prices. D
             )
             data = response.json()
             parts = [b.get("text","") for b in data.get("content",[]) if b.get("type")=="text"]
-            analysis = "\n".join(parts) if parts else "Analysis unavailable"
+            analysis = "\\n".join(parts) if parts else "Analysis unavailable"
             return {"analysis": analysis, "status": "ok"}
     except Exception as e:
         return {"analysis": f"Error: {str(e)}", "status": "error"}
+'''
+
+with open("app/routers/portfolio_analysis.py", "w", encoding="utf-8") as f:
+    f.write(router_code)
+print("Step 1: portfolio_analysis.py router created")
+
+# Step 2: Update main.py to register the router
+with open("app/main.py", "r", encoding="utf-8") as f:
+    main = f.read()
+
+if "portfolio_analysis" not in main:
+    # Add import and router registration
+    main = main.replace(
+        "from fastapi import FastAPI",
+        "from fastapi import FastAPI\nfrom app.routers.portfolio_analysis import router as portfolio_router"
+    )
+    # Add at the end before last line or append
+    main += "\napp.include_router(portfolio_router)\n"
+    with open("app/main.py", "w", encoding="utf-8") as f:
+        f.write(main)
+    print("Step 2: main.py updated - portfolio router registered")
+else:
+    print("Step 2: portfolio router already in main.py")
+
+# Step 3: Verify
+import os
+if os.path.exists("app/routers/portfolio_analysis.py"):
+    print("Step 3: Verified - portfolio_analysis.py exists")
+    with open("app/routers/portfolio_analysis.py") as f:
+        lines = f.readlines()
+    print(f"  File has {len(lines)} lines")
+    print(f"  First line: {lines[0].strip()}")
+
+print("\nAll done! Now run: git add -A && git commit -m 'Add deep portfolio analysis' && git push origin main")

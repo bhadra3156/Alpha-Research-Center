@@ -90,44 +90,10 @@ export default function Portfolio() {
       }).join("\n");
       const totalCost=positions.reduce((s,p)=>s+n(p.entry_price)*n(p.shares),0);
 
-      const res=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":"","anthropic-version":"2023-06-01"},
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:1500,
-          messages:[{role:"user",content:`You are a senior hedge fund portfolio manager with 45 years of experience. Analyze this portfolio and provide a professional assessment.
-
-PORTFOLIO HOLDINGS:
-${portfolioSummary}
-
-Total Portfolio Value: $${totalCost.toLocaleString(undefined,{maximumFractionDigits:0})}
-Number of Positions: ${positions.length}
-
-Provide:
-1. SWOT ANALYSIS (Strengths, Weaknesses, Opportunities, Threats)
-2. POSITION-BY-POSITION VERDICT (HOLD/BUY MORE/REDUCE/SELL) with brief reasoning
-3. PORTFOLIO RISK ASSESSMENT (concentration risk, sector exposure, correlation)
-4. TOP RECOMMENDATION (your single most important action right now)
-
-Be direct, institutional, and concise. No disclaimers.`}]
-        })
-      });
-
-      if(!res.ok) throw new Error("API error");
+      const res=await fetch("https://alpha-research-center-backend.onrender.com/analyze/portfolio-deep",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({holdings:positions.map(p=>({ticker:p.ticker,shares:n(p.shares),entry_price:n(p.entry_price),stop_level:n(p.stop_level),target_price:n(p.target_price),notes:p.notes||""}))})});
+      if(!res.ok) throw new Error("Backend error");
       const data=await res.json();
-      const text=data.content?.[0]?.text||"Analysis unavailable";
-      setAnalysis(text);
-    } catch(e) {
-      // Fallback: use Render backend
-      try {
-        const portfolioSummary=positions.map(p=>`${p.ticker}: ${n(p.shares)} shares @ $${n(p.entry_price).toFixed(2)}, Cost $${(n(p.entry_price)*n(p.shares)).toLocaleString(undefined,{maximumFractionDigits:0})}${p.notes?` (${p.notes})`:""}`).join(", ");
-        const res2=await fetch(`https://alpha-research-center-backend.onrender.com/analyze/portfolio?holdings=${encodeURIComponent(portfolioSummary)}`);
-        if(res2.ok){ const d=await res2.json(); setAnalysis(d.analysis||d.narrative||"Analysis unavailable"); }
-        else throw new Error("Backend error");
-      } catch(e2) {
-        setAnalysis(generateLocalAnalysis(positions));
-      }
+      setAnalysis(data.analysis||"Analysis unavailable");
     }
     setAnalyzing(false);
   };
