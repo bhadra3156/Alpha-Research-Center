@@ -68,3 +68,6 @@ Be direct and institutional. No disclaimers."""
         return {"analysis": analysis, "status": "ok"}
     except Exception as e:
         return {"analysis": f"Analysis unavailable: {str(e)}", "status": "error"}
+
+from app.routers.portfolio_analysis import router as portfolio_router
+app.include_router(portfolio_router)

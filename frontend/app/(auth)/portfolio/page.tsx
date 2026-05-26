@@ -123,7 +123,7 @@ Be direct, institutional, and concise. No disclaimers.`}]
       try {
         const portfolioSummary=positions.map(p=>`${p.ticker}: ${n(p.shares)} shares @ $${n(p.entry_price).toFixed(2)}, Cost $${(n(p.entry_price)*n(p.shares)).toLocaleString(undefined,{maximumFractionDigits:0})}${p.notes?` (${p.notes})`:""}`).join(", ");
         const res2=await fetch(`https://alpha-research-center-backend.onrender.com/analyze/portfolio?holdings=${encodeURIComponent(portfolioSummary)}`);
-        if(res2.ok){ const d=await res2.json(); setAnalysis(d.narrative||d.analysis||JSON.stringify(d)); }
+        if(res2.ok){ const d=await res2.json(); setAnalysis(d.analysis||d.narrative||"Analysis unavailable"); }
         else throw new Error("Backend error");
       } catch(e2) {
         setAnalysis(generateLocalAnalysis(positions));
