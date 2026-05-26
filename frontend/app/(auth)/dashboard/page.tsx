@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 function Navigation() {
   return (
@@ -102,6 +102,36 @@ export default function Dashboard() {
   const stageBg = (st:string) => st.includes("Stage 2")?"rgba(16,185,129,0.12)":st.includes("Stage 1")?"rgba(96,165,250,0.12)":"rgba(239,68,68,0.12)";
   const rsiColor = (r:number) => r<30?red:r>75?red:r>60?gold:green;
   const SortArrow = ({col}:{col:string}) => <span style={{color:sortBy===col?gold:"#334155"}}>{sortBy===col?(sortDir==="desc"?" ↓":" ↑"):" ·"}</span>;
+  const addToWatchlist = (s: Stock) => {
+    try {
+      const existing = JSON.parse(localStorage.getItem("alpha_watchlist_v3") || "[]");
+      if (existing.find((i: any) => i.ticker === s.ticker)) {
+        alert(s.ticker + " is already in your watchlist!");
+        return;
+      }
+      const item = {
+        id: Date.now().toString(),
+        ticker: s.ticker,
+        market: s.market || "US",
+        sector: s.sector || "",
+        theme: "",
+        notes: s.technical_stage + " | Conv: " + s.conviction_score + "/10 | Entry: " + s.entry_zone,
+        added: new Date().toISOString().split("T")[0],
+        score: s.conviction_score,
+        c1_pass: s.check1_pass,
+        c2_pass: s.check2_pass,
+        stage: s.technical_stage,
+        rsi: s.rsi14 || 0,
+        entry_zone: s.entry_zone || "",
+        graduated: false
+      };
+      localStorage.setItem("alpha_watchlist_v3", JSON.stringify([...existing, item]));
+      alert("✅ " + s.ticker + " added to watchlist!");
+    } catch(e) {
+      alert("Failed to add to watchlist");
+    }
+  };
+
 
   const avgConv = stocks.length?(stocks.reduce((s,x)=>s+x.conviction_score,0)/stocks.length).toFixed(1):"—";
   const stage2 = stocks.filter(s=>s.technical_stage.includes("Stage 2")).length;
@@ -347,7 +377,12 @@ export default function Dashboard() {
                             style={{padding:"5px 10px",borderRadius:"6px",fontSize:"10px",fontWeight:"700",cursor:"pointer",
                               border:"1px solid rgba(245,158,11,0.3)",background:"rgba(245,158,11,0.1)",color:gold,whiteSpace:"nowrap"}}>
                             🔬 Analyze
-                          </button>
+                            </button>
+                            <button
+                              onClick={() => addToWatchlist(s)}
+                              style={{padding:"4px 8px",borderRadius:"5px",fontSize:"9px",fontWeight:"700",cursor:"pointer",border:"1px solid rgba(16,185,129,0.3)",background:"rgba(16,185,129,0.1)",color:"#10b981",whiteSpace:"nowrap"}}>
+                              👁️ Watch
+                            </button>
                         </td>
                       </tr>
                     );
