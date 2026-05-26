@@ -60,3 +60,19 @@ frontend/.env.local
 __pycache__/
 .next/
 node_modules/
+
+# Dev artifacts - never commit
+fix_*.py
+*_patch.py
+diagnose.py
+bust_cache.py
+upgrade_scan.py
+audit_codebase.py
+test_scoring.py
+*.pyc
+__pycache__/
+.venv/
+backend/.env
+frontend/.env.local
+.next/
+node_modules/
