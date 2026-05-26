@@ -121,7 +121,7 @@ Write with Goldman Sachs precision. Specific numbers. No generic commentary.`;
       const res = await fetch(`${BACKEND}/analyze/portfolio-deep`, {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({stocks: items.map(i=>({ticker:i.ticker, market:i.market, sector:i.sector||"", theme:i.theme||"", notes:i.notes||""}))})
+        body:JSON.stringify({holdings: items.map(i=>({ticker:i.ticker, shares:1, entry_price:1, stop_level:0, target_price:0, notes:`${i.sector||""} ${i.theme||""} ${i.notes||""}`.trim()})), watchlist_mode:true, custom_prompt:prompt})
       });
       if (!res.ok) throw new Error("Backend error");
       const data = await res.json();
@@ -132,7 +132,7 @@ Write with Goldman Sachs precision. Specific numbers. No generic commentary.`;
         setAnalyzeProgress("Using Groq LLaMA fallback...");
         const res2 = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method:"POST",
-          headers:{"Content-Type":"application/json","Authorization":"Bearer REMOVED"},
+          headers:{"Content-Type":"application/json","Authorization":"Bearer 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"},
           body:JSON.stringify({
             model:"llama-3.3-70b-versatile", max_tokens:4000, temperature:0.3,
             messages:[
