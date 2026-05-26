@@ -1,4 +1,4 @@
-"use client";
+﻿"use client"; // v2.0 bloomberg
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 
