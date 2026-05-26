@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import scan, analyze, watchlist, portfolio, journal, alerts
 from app.routers.portfolio_analysis import router as portfolio_router
 from app.routers.watchlist_analysis import router as watchlist_analysis_router
+from app.routers.ticker_info import router as ticker_info_router
 import uvicorn
 
 app = FastAPI(
@@ -27,6 +28,7 @@ app.include_router(journal.router,    prefix="/journal",    tags=["Journal"])
 app.include_router(alerts.router,     prefix="/alerts",     tags=["Alerts"])
 app.include_router(portfolio_router)
 app.include_router(watchlist_analysis_router)
+app.include_router(ticker_info_router)
 
 @app.get("/")
 async def root():
