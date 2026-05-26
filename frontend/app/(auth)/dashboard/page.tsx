@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React from "react";
 
 function Navigation() {
@@ -259,6 +259,7 @@ export default function Dashboard() {
                 <span style={{padding:"2px 8px",borderRadius:"10px",fontSize:"10px",fontWeight:"700",background:"rgba(16,185,129,0.15)",color:green,border:"1px solid rgba(16,185,129,0.3)"}}>
                   {stocks.length} PASS
                 </span>
+                <CopyButton text={stocks.map(s=>`${s.ticker} | $${s.price.toFixed(2)} | ${s.technical_stage} | Conv:${s.conviction_score}/10 | Entry:${s.entry_zone}`).join("\n")}/>
               </div>
             </div>
             <div style={{overflowX:"auto"}}>

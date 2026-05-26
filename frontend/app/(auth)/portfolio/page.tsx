@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React from "react";
 import { useState, useEffect } from "react";
 
@@ -314,6 +314,7 @@ export default function Portfolio() {
                 style={{padding:"4px 10px",borderRadius:"6px",fontSize:"11px",cursor:"pointer",border:"1px solid #1e293b",background:"transparent",color:"#475569"}}>
                 ✕ Close
               </button>
+              <CopyButton text={analysis||""}/>
             </div>
             <pre style={{color:"#e2e8f0",fontSize:"12px",lineHeight:"1.7",whiteSpace:"pre-wrap",fontFamily:"'Courier New',monospace",margin:0}}>
               {analysis}

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React from "react";
 import { useState, useEffect, useCallback } from "react";
 
@@ -376,6 +376,7 @@ export default function Watchlist() {
               </div>
               <button onClick={()=>setAnalysis(null)}
                 style={{padding:"4px 10px",borderRadius:"6px",fontSize:"11px",cursor:"pointer",border:"1px solid #1e293b",background:"transparent",color:"#475569"}}>✕</button>
+              <CopyButton text={analysis||""}/>
             </div>
             <pre style={{color:"#e2e8f0",fontSize:"12px",lineHeight:"1.8",whiteSpace:"pre-wrap",fontFamily:"'Courier New',monospace",margin:0}}>{analysis}</pre>
             <div style={{marginTop:"10px",fontSize:"10px",color:"#334155"}}>Lynch Fundamental Framework + Wyckoff Phase Analysis · Not financial advice</div>
