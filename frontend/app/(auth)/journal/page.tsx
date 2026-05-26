@@ -133,7 +133,7 @@ const S = {
 function ConvictionBar({
   value, onChange,
 }: { value: number; onChange?: (v: number) => void }) {
-  return (return (
+  return (
     <div style={{ display: "flex", gap: 3 }}>
       {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
         const active = n <= value;
@@ -175,7 +175,7 @@ function ConvictionBar({
 function StatTile({
   icon, label, value, sub, accent,
 }: { icon: string; label: string; value: string | number; sub?: string; accent: string }) {
-  return (return (
+  return (
     <div style={{
       background: "rgba(10,18,35,0.9)",
       border: "1px solid rgba(255,255,255,0.06)",
@@ -213,7 +213,7 @@ function EntryCard({
     day: "2-digit", month: "short", year: "numeric",
   });
 
-  return (return (
+  return (
     <div
       onClick={() => setOpen((x) => !x)}
       style={{
@@ -516,7 +516,7 @@ export default function JournalPage() {
   });
 
   // ── render ────────────────────────────────────────────────────────────────────
-  return (return (
+  return (
     <div style={{
       minHeight: "100vh",
       background: "radial-gradient(ellipse at 20% 20%, #0d1f3c 0%, #06111e 50%, #000d1a 100%)",
