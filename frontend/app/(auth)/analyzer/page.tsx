@@ -107,7 +107,6 @@ function AnalyzerInner(){
             )}
           </>
         )}
-    </div>
   );
 }
 export default function AnalyzerPage() {

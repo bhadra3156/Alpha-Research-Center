@@ -27,6 +27,7 @@ export default function Journal(){
   const inp=(label:string,value:string,setter:(v:string)=>void,type="text",placeholder="")=>(<div><label className="text-[10px] text-[#52525b] uppercase tracking-wider block mb-1">{label}</label><input type={type} value={value} onChange={e=>setter(e.target.value)} placeholder={placeholder} className="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] px-3 py-2 text-xs rounded focus:outline-none focus:border-amber-500/50"/></div>);
   return(
     <>
+    <>
       <div className="space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <KpiCard label="Total Trades" value={String(entries.length)} sub="all time"/>
@@ -109,6 +110,6 @@ export default function Journal(){
           )}
         </div>
         <p className="text-[10px] text-[#27272a] text-center">Journal data stored in Supabase · Not financial advice</p>
-    </div>
+    </>
   );
 }

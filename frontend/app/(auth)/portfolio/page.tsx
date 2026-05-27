@@ -22,6 +22,7 @@ export default function Portfolio(){
   const inp=(label:string,value:string,setter:(v:string)=>void,type="text",placeholder="")=>(<div><label className="text-[10px] text-[#52525b] uppercase tracking-wider block mb-1">{label}</label><input type={type} value={value} onChange={e=>setter(e.target.value)} placeholder={placeholder} className="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] px-3 py-2 text-xs rounded focus:outline-none focus:border-amber-500/50"/></div>);
   return(
     <>
+    <>
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <KpiCard label="Open Positions" value={String(positions.length)} sub="active trades" color="text-emerald-400"/>
@@ -109,6 +110,6 @@ export default function Portfolio(){
           )}
         </div>
         <p className="text-[10px] text-[#27272a] text-center">Data persisted in local storage Â· AI analysis powered by Claude Sonnet Â· Not financial advice</p>
-    </div>
+    </>
   );
 }

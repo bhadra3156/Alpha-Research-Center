@@ -7,6 +7,7 @@ interface WatchItem{id:string;ticker:string;market:string;sector:string;theme:st
 function daysSince(d:string){return Math.floor((Date.now()-new Date(d).getTime())/86400000);}
 function Navbar({active}:{active:string}){
   return(
+    <>
     <nav className="bg-[#18181b]/80 backdrop-blur-md border-b border-[#27272a] sticky top-0 z-50 px-6 h-14 flex items-center justify-between">
       <span className="text-[#fafafa] font-bold tracking-tight text-sm uppercase">AlphaResearch</span>
       <div className="flex items-center gap-6">
@@ -48,6 +49,7 @@ export default function Watchlist(){
   const avgScore=items.length?(items.reduce((s,i)=>s+i.score,0)/items.length).toFixed(1):"â€”";
   const ccolor=(s:number)=>s>=9?"text-emerald-400":s>=7?"text-amber-400":s>=5?"text-blue-400":"text-rose-400";
   return(
+    <>
     <>
       <div className="space-y-6">
         {items.length>0&&<div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -137,6 +139,6 @@ export default function Watchlist(){
           )}
         </div>
         <p className="text-[10px] text-[#27272a] text-center">Data persisted in local storage Â· Score vs 3-Checks requires backend Â· Not financial advice</p>
-    </div>
+    </>
   );
 }
