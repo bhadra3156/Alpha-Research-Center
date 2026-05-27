@@ -110,7 +110,6 @@ export default function Portfolio(){
           )}
         </div>
         <p className="text-[10px] text-[#27272a] text-center">Data persisted in local storage · AI analysis powered by Claude Sonnet · Not financial advice</p>
-      </main>
-    </div>
+      </div>
   );
 }

@@ -48,9 +48,7 @@ export default function Watchlist(){
   const avgScore=items.length?(items.reduce((s,i)=>s+i.score,0)/items.length).toFixed(1):"—";
   const ccolor=(s:number)=>s>=9?"text-emerald-400":s>=7?"text-amber-400":s>=5?"text-blue-400":"text-rose-400";
   return(
-    <div className="min-h-screen bg-[#09090b] text-[#fafafa] font-sans antialiased">
-      <Navbar active="watchlist"/>
-      <main className="max-w-[1600px] mx-auto p-4 md:p-6 space-y-6">
+    <div className="space-y-6">
         {items.length>0&&<div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <KpiCard label="Monitored" value={String(items.length)} sub="total stocks"/>
           <KpiCard label="Qualifying" value={String(qualified)} sub="pass 3-checks" color="text-emerald-400"/>
@@ -138,7 +136,6 @@ export default function Watchlist(){
           )}
         </div>
         <p className="text-[10px] text-[#27272a] text-center">Data persisted in local storage · Score vs 3-Checks requires backend · Not financial advice</p>
-      </main>
-    </div>
+      </div>
   );
 }

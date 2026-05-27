@@ -110,7 +110,6 @@ export default function Journal(){
           )}
         </div>
         <p className="text-[10px] text-[#27272a] text-center">Journal data stored in Supabase · Not financial advice</p>
-      </main>
-    </div>
+      </div>
   );
 }
