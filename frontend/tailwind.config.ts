@@ -1,3 +1,11 @@
+/* =============================================================
+   AlphaResearch — Tailwind Config (Institutional Minimalist)
+   File: tailwind.config.ts  (REPLACE EXISTING)
+   v1.1 — Drop-in replacement. Every color key used by existing
+          components is preserved so nothing breaks. Gradients
+          and glows are neutralized to flat surfaces.
+   ============================================================= */
+
 import type { Config } from "tailwindcss";
 
 const config: Config = {
@@ -10,26 +18,50 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // AlphaResearch Navy/Gold/Steel Palette
+        // ---------------------------------------------------
+        // SURFACES — single near-black tone family
+        // ---------------------------------------------------
+        surface: {
+          base:     "#0a0a0b",
+          DEFAULT:  "#111113",
+          elevated: "#161618",
+          input:    "#0f0f11",
+        },
+        border: {
+          subtle:  "#1f1f23",
+          DEFAULT: "#27272a",
+          strong:  "#3f3f46",
+        },
+        ink: {
+          primary:   "#fafafa",
+          secondary: "#a1a1aa",
+          muted:     "#71717a",
+          faint:     "#52525b",
+        },
+
+        // ---------------------------------------------------
+        // LEGACY KEYS — preserved so existing components keep
+        // compiling. All collapsed to the minimalist palette.
+        // ---------------------------------------------------
         navy: {
-          50:  "#eef2ff",
-          100: "#dde6ff",
-          200: "#c3d0ff",
-          300: "#a0b3ff",
-          400: "#7a8eff",
-          500: "#5566ff",
-          600: "#3d44f5",
-          700: "#3132e0",
-          800: "#1a1f6e",
-          900: "#0d1145",
-          950: "#060820",
+          50:  "#fafafa",
+          100: "#f4f4f5",
+          200: "#e4e4e7",
+          300: "#d4d4d8",
+          400: "#a1a1aa",
+          500: "#71717a",
+          600: "#52525b",
+          700: "#3f3f46",
+          800: "#27272a",
+          900: "#18181b",
+          950: "#0a0a0b",
         },
         gold: {
           50:  "#fffbeb",
-          100: "#fff3c4",
-          200: "#ffe685",
-          300: "#ffd246",
-          400: "#ffbb1a",
+          100: "#fef3c7",
+          200: "#fde68a",
+          300: "#fcd34d",
+          400: "#fbbf24",
           500: "#f59e0b",
           600: "#d97706",
           700: "#b45309",
@@ -37,66 +69,87 @@ const config: Config = {
           900: "#78350f",
         },
         steel: {
-          50:  "#f8fafc",
-          100: "#f1f5f9",
-          200: "#e2e8f0",
-          300: "#cbd5e1",
-          400: "#94a3b8",
-          500: "#64748b",
-          600: "#475569",
-          700: "#334155",
-          800: "#1e293b",
-          900: "#0f172a",
-          950: "#020617",
+          50:  "#fafafa",
+          100: "#f4f4f5",
+          200: "#e4e4e7",
+          300: "#d4d4d8",
+          400: "#a1a1aa",
+          500: "#71717a",
+          600: "#52525b",
+          700: "#3f3f46",
+          800: "#27272a",
+          900: "#18181b",
+          950: "#0a0a0b",
         },
+
+        // ---------------------------------------------------
+        // STATUS — data-driven semantic colors only
+        // ---------------------------------------------------
         success: "#10b981",
         danger:  "#ef4444",
         warning: "#f59e0b",
         info:    "#3b82f6",
+        smart:   "#a855f7",
       },
+
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "Fira Code", "monospace"],
+        mono: ["JetBrains Mono", "SF Mono", "Menlo", "monospace"],
       },
+
+      // ---------------------------------------------------
+      // GRADIENTS — neutralized to flat surface color
+      // (keys preserved so any existing class still resolves)
+      // ---------------------------------------------------
       backgroundImage: {
-        "gradient-radial":   "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-navy":     "linear-gradient(135deg, #060820 0%, #0d1145 50%, #1a1f6e 100%)",
-        "gradient-gold":     "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-        "gradient-card":     "linear-gradient(145deg, #0f172a 0%, #1e293b 100%)",
+        "gradient-radial": "none",
+        "gradient-navy":   "none",
+        "gradient-gold":   "none",
+        "gradient-card":   "none",
       },
+
+      // ---------------------------------------------------
+      // SHADOWS — flat, no glows
+      // ---------------------------------------------------
       boxShadow: {
-        "gold-glow":  "0 0 20px rgba(245, 158, 11, 0.3)",
-        "navy-glow":  "0 0 20px rgba(26, 31, 110, 0.5)",
-        "card":       "0 4px 24px rgba(0, 0, 0, 0.4)",
-        "card-hover": "0 8px 40px rgba(0, 0, 0, 0.6)",
+        "gold-glow":  "none",
+        "navy-glow":  "none",
+        "card":       "none",
+        "card-hover": "none",
+        "subtle":     "0 1px 2px rgba(0, 0, 0, 0.4)",
       },
+
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        lg: "8px",
+        md: "6px",
+        sm: "4px",
       },
+
+      letterSpacing: {
+        tightest: "-0.02em",
+        tighter:  "-0.01em",
+        widest:   "0.15em",
+      },
+
       animation: {
-        "pulse-gold":   "pulse-gold 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "slide-up":     "slideUp 0.3s ease-out",
-        "fade-in":      "fadeIn 0.4s ease-out",
-        "scan-line":    "scanLine 2s linear infinite",
+        "pulse-gold": "pulse-soft 2s ease-in-out infinite",
+        "slide-up":   "slideUp 200ms ease-out",
+        "fade-in":    "fadeIn 200ms ease-out",
+        "scan-line":  "none",
       },
+
       keyframes: {
-        "pulse-gold": {
+        "pulse-soft": {
           "0%, 100%": { opacity: "1" },
-          "50%":       { opacity: "0.6" },
+          "50%":      { opacity: "0.5" },
         },
         slideUp: {
-          "0%":   { transform: "translateY(10px)", opacity: "0" },
-          "100%": { transform: "translateY(0)",    opacity: "1" },
+          "0%":   { transform: "translateY(4px)", opacity: "0" },
+          "100%": { transform: "translateY(0)",   opacity: "1" },
         },
         fadeIn: {
           "0%":   { opacity: "0" },
           "100%": { opacity: "1" },
-        },
-        scanLine: {
-          "0%":   { transform: "translateY(-100%)" },
-          "100%": { transform: "translateY(100vh)" },
         },
       },
     },

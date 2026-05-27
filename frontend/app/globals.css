@@ -1,27 +1,248 @@
+/* =============================================================
+   AlphaResearch — Institutional Minimalist Theme
+   File: app/globals.css  (REPLACE EXISTING)
+   v1.1 — Zero-impact restyle. All existing component class names
+          preserved. Drop-in replacement.
+   ============================================================= */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* -------------------------------------------------------------
+   1. DESIGN TOKENS  (CSS variables — single source of truth)
+   ------------------------------------------------------------- */
+@layer base {
+  :root {
+    /* Surfaces */
+    --bg-base:        #0a0a0b;   /* page background */
+    --bg-surface:     #111113;   /* cards, panels */
+    --bg-elevated:    #161618;   /* hover, popovers */
+    --bg-input:       #0f0f11;   /* form fields */
+
+    /* Borders */
+    --border-subtle:  #1f1f23;
+    --border-default: #27272a;
+    --border-strong:  #3f3f46;
+
+    /* Text */
+    --text-primary:   #fafafa;
+    --text-secondary: #a1a1aa;
+    --text-muted:     #71717a;
+    --text-faint:     #52525b;
+
+    /* Accent — single brand color, used sparingly */
+    --accent:         #f59e0b;   /* amber-500 */
+    --accent-hover:   #fbbf24;   /* amber-400 */
+    --accent-dim:     #b45309;   /* amber-700 */
+
+    /* Functional status (data-driven only) */
+    --status-pass:    #10b981;
+    --status-fail:    #ef4444;
+    --status-stage:   #3b82f6;
+    --status-smart:   #a855f7;
+    --status-warn:    #f59e0b;
+
+    /* Radii */
+    --radius-sm: 4px;
+    --radius:    6px;
+    --radius-lg: 8px;
+  }
+
+  /* Base reset */
+  html, body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Numbers always tabular + mono */
+  .tabular, .font-mono, code, pre, kbd {
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Selection */
+  ::selection { background: var(--accent); color: var(--bg-base); }
+
+  /* Scrollbar — minimal */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+}
+
+/* -------------------------------------------------------------
+   2. COMPONENT CLASSES  (preserve every name already in use)
+   ------------------------------------------------------------- */
 @layer components {
+
+  /* === CARD — replaces gradients with flat surface === */
   .card {
-    @apply bg-[#18181b] border border-[#27272a] rounded-xl shadow-sm;
+    @apply rounded-md;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    box-shadow: none;
   }
+  .card-hover {
+    transition: border-color 150ms ease;
+  }
+  .card-hover:hover {
+    border-color: var(--border-strong);
+  }
+
+  /* === BADGES — flat, no glow, single tone === */
   .badge-pass {
-    @apply bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-semibold px-2 py-0.5 rounded-md;
-  }
-  .badge-stage {
-    @apply bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-semibold px-2 py-0.5 rounded-md;
-  }
-  .badge-smart {
-    @apply bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-semibold px-2 py-0.5 rounded-md;
+    @apply text-[10px] font-semibold px-2 py-0.5 rounded;
+    background: rgba(16, 185, 129, 0.08);
+    color: var(--status-pass);
+    border: 1px solid rgba(16, 185, 129, 0.18);
   }
   .badge-fail {
-    @apply bg-red-500/10 text-red-400 border border-red-500/20 text-[10px] font-semibold px-2 py-0.5 rounded-md;
+    @apply text-[10px] font-semibold px-2 py-0.5 rounded;
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--status-fail);
+    border: 1px solid rgba(239, 68, 68, 0.18);
   }
+  .badge-stage {
+    @apply text-[10px] font-semibold px-2 py-0.5 rounded;
+    background: rgba(59, 130, 246, 0.08);
+    color: var(--status-stage);
+    border: 1px solid rgba(59, 130, 246, 0.18);
+  }
+  .badge-smart {
+    @apply text-[10px] font-semibold px-2 py-0.5 rounded;
+    background: rgba(245, 158, 11, 0.08);
+    color: var(--accent);
+    border: 1px solid rgba(245, 158, 11, 0.18);
+  }
+  .badge-neutral {
+    @apply text-[10px] font-semibold px-2 py-0.5 rounded;
+    background: rgba(161, 161, 170, 0.06);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-default);
+  }
+
+  /* === METRICS — page hero numbers === */
   .metric-number {
-    @apply text-2xl font-bold tracking-tight text-[#fafafa] font-mono tabular-nums;
+    @apply text-2xl font-bold tracking-tight tabular-nums;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
   }
   .metric-label {
-    @apply text-[10px] font-semibold text-[#71717a] uppercase tracking-widest;
+    @apply text-[10px] font-semibold uppercase tracking-widest;
+    color: var(--text-muted);
   }
+
+  /* === BUTTON UTILITIES — for any inline use === */
+  .btn-primary {
+    @apply text-[12px] font-semibold px-4 py-2 rounded transition-colors duration-150;
+    background: var(--accent);
+    color: var(--bg-base);
+    border: 1px solid var(--accent);
+  }
+  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+  .btn-secondary {
+    @apply text-[12px] font-medium px-4 py-2 rounded transition-colors duration-150;
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+  }
+  .btn-secondary:hover { border-color: var(--border-strong); background: var(--bg-elevated); }
+
+  .btn-ghost {
+    @apply text-[12px] font-medium px-3 py-1.5 rounded transition-colors duration-150;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid transparent;
+  }
+  .btn-ghost:hover { color: var(--text-primary); background: var(--bg-elevated); }
+
+  /* === TABLE PRIMITIVES — for the scan/watchlist grids === */
+  .table-cell {
+    @apply text-[12px] py-2.5 px-3;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .table-header {
+    @apply text-[10px] font-semibold uppercase tracking-widest py-2 px-3;
+    color: var(--text-muted);
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-default);
+  }
+  .table-row-hover:hover { background: var(--bg-elevated); }
+
+  /* === SECTION HEADING — minimalist tier === */
+  .section-label {
+    @apply text-[10px] font-semibold uppercase tracking-widest;
+    color: var(--text-muted);
+  }
+  .section-title {
+    @apply text-[22px] font-bold tracking-tight;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+  }
+  .section-sub {
+    @apply text-[12px];
+    color: var(--text-secondary);
+  }
+
+  /* === LIVE INDICATOR (used in Navbar) === */
+  .live-dot {
+    @apply w-1.5 h-1.5 rounded-full;
+    background: var(--status-pass);
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+    animation: pulse-live 2s ease-in-out infinite;
+  }
+
+  /* === FORM INPUTS — flat, dense === */
+  .input-base {
+    @apply text-[12px] px-3 py-2 rounded transition-colors duration-150 w-full;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .input-base:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .input-base::placeholder { color: var(--text-faint); }
+}
+
+/* -------------------------------------------------------------
+   3. KEYFRAMES — only the essentials
+   ------------------------------------------------------------- */
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in { animation: fade-in 200ms ease-out; }
+
+/* -------------------------------------------------------------
+   4. OVERRIDES — neutralize legacy gradients/glows if any
+      component still references them via tailwind config
+   ------------------------------------------------------------- */
+.bg-gradient-navy,
+.bg-gradient-card,
+.bg-gradient-gold {
+  background: var(--bg-surface) !important;
+  background-image: none !important;
+}
+
+.shadow-gold-glow,
+.shadow-navy-glow,
+.shadow-card,
+.shadow-card-hover {
+  box-shadow: none !important;
 }
