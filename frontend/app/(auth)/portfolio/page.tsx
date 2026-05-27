@@ -21,7 +21,7 @@ export default function Portfolio(){
   const total=positions.reduce((s,p)=>s+n(p.entry_price)*n(p.shares),0);
   const inp=(label:string,value:string,setter:(v:string)=>void,type="text",placeholder="")=>(<div><label className="text-[10px] text-[#52525b] uppercase tracking-wider block mb-1">{label}</label><input type={type} value={value} onChange={e=>setter(e.target.value)} placeholder={placeholder} className="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] px-3 py-2 text-xs rounded focus:outline-none focus:border-amber-500/50"/></div>);
   return(
-       </>
+    <div className="min-h-screen bg-[#09090b] text-[#fafafa] font-sans antialiased">
       <Navbar active="portfolio"/>
       <main className="max-w-[1600px] mx-auto p-4 md:p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -111,6 +111,6 @@ export default function Portfolio(){
         </div>
         <p className="text-[10px] text-[#27272a] text-center">Data persisted in local storage · AI analysis powered by Claude Sonnet · Not financial advice</p>
       </main>
-    </>
+    </div>
   );
 }
