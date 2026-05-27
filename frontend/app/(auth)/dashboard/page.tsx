@@ -1,307 +1,506 @@
-﻿New-Item -Path "frontend/app/dashboard/page.tsx" -ItemType File -Force
-Set-Content -Path "frontend/app/dashboard/page.tsx" -Value @'
+﻿// ─────────────────────────────────────────────────────────────────────────────
+// AlphaResearch — Dashboard (Equity Intelligence Command Center)
+// Live 3-Check scan · Bloomberg-spec master table · Conviction color-coding
+// ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
-import { useState } from "react";
+import React, { useState, useCallback } from "react";
 import Link from "next/link";
+import { api } from "@/lib/api";
+import type { QualifyingStock, ScanResponse } from "@/lib/types";
+import {
+  KpiCard,
+  ConvictionBar,
+  CheckBadge,
+  StageTag,
+  DataQualityBadge,
+  ScanLoading,
+  EmptyState,
+} from "@/components/shared/ui-primitives";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-interface QualifyingStock {
-  ticker: string;
-  market: "US" | "UK";
-  company: string;
-  price: string;
-  fundVerdict: "PASS" | "FAIL";
-  techPhase: "Stage 1" | "Stage 2";
-  smartMoney: string;
-  conviction: number;
-  theme?: string;
-}
-
-// ─── Mock seed data (replace with live API) ──────────────────────────────────
-const MOCK_STOCKS: QualifyingStock[] = [
-  { ticker:"AMD",  market:"US", company:"Advanced Micro Devices",   price:"$467.51",  fundVerdict:"PASS", techPhase:"Stage 2", smartMoney:"13F",          conviction:8, theme:"AI Infra"   },
-  { ticker:"NVDA", market:"US", company:"NVIDIA Corporation",        price:"$1,089.20",fundVerdict:"PASS", techPhase:"Stage 2", smartMoney:"13F + Insider", conviction:9, theme:"AI Infra"   },
-  { ticker:"CRDO", market:"US", company:"Credo Technology Group",    price:"$58.44",   fundVerdict:"PASS", techPhase:"Stage 1", smartMoney:"13F",          conviction:7, theme:"AI Infra"   },
-  { ticker:"CEG",  market:"US", company:"Constellation Energy",      price:"$248.77",  fundVerdict:"PASS", techPhase:"Stage 2", smartMoney:"13F + Politician", conviction:8, theme:"Energy"  },
-  { ticker:"BA.",  market:"UK", company:"BAE Systems plc",           price:"1,342p",   fundVerdict:"PASS", techPhase:"Stage 2", smartMoney:"Director Buy",  conviction:8, theme:"Defence"   },
-  { ticker:"RR.",  market:"UK", company:"Rolls-Royce Holdings plc",  price:"612p",     fundVerdict:"PASS", techPhase:"Stage 2", smartMoney:"Director Buy",  conviction:7, theme:"Defence"   },
-  { ticker:"MRVL", market:"US", company:"Marvell Technology",        price:"$89.14",   fundVerdict:"PASS", techPhase:"Stage 2", smartMoney:"13F",           conviction:7, theme:"AI Infra"  },
-];
-
-const THEMES = ["All", "AI Infra", "Defence", "Energy", "Healthcare", "Financials"];
-const MARKETS = ["Both", "US", "UK"];
-const CONVICTION_FILTERS = ["All", "High (8–10)", "Medium (5–7)"];
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function MetricCard({ label, value, sub, accent }: {
-  label: string; value: string | number; sub: string; accent?: string;
-}) {
-  return (
-    <div className="bg-[#18181b] border border-[#27272a] rounded-xl p-5">
-      <p className="metric-label mb-2">{label}</p>
-      <p className={`metric-number ${accent ?? ""}`}>{value}</p>
-      <p className="text-[11px] text-[#52525b] mt-1">{sub}</p>
-    </div>
-  );
-}
-
-function FilterGroup({ options, active, onChange }: {
-  options: string[]; active: string; onChange: (v: string) => void;
-}) {
-  return (
-    <div className="flex gap-0.5 bg-[#27272a]/50 p-1 rounded-lg border border-[#27272a]">
-      {options.map((opt) => (
-        <button
-          key={opt}
-          onClick={() => onChange(opt)}
-          className={[
-            "text-[11px] px-3 py-1.5 rounded-md font-medium transition-all duration-100",
-            opt === active
-              ? "bg-[#27272a] text-[#fafafa] shadow-sm"
-              : "text-[#a1a1aa] hover:text-[#fafafa]",
-          ].join(" ")}
-        >
-          {opt}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ChecksPanel() {
-  const checks = [
-    {
-      num: "1", label: "Fundamentals", status: "pass",
-      desc: "FCF margin >10% · Revenue CAGR · ROIC vs WACC · PEG <1.5",
-    },
-    {
-      num: "2", label: "Technical Phase", status: "pass",
-      desc: "Weinstein Stage 1 or 2 · Golden Cross · Volume on up-days",
-    },
-    {
-      num: "3", label: "Smart Money", status: "warn",
-      desc: "13F institutional buy · STOCK Act politician · Form 4 P-buy",
-    },
-  ];
-
-  return (
-    <div className="bg-[#18181b] border border-[#27272a] rounded-xl p-6 flex flex-col gap-0">
-      <p className="text-[10px] font-semibold text-[#52525b] uppercase tracking-widest mb-4">
-        3-Check System
-      </p>
-
-      {checks.map((c) => (
-        <div key={c.num} className="flex items-start gap-3 py-3 border-b border-[#27272a] last:border-none">
-          <div className={[
-            "w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold flex-shrink-0 mt-0.5",
-            c.status === "pass"
-              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-              : "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-          ].join(" ")}>
-            {c.status === "pass" ? "✓" : "!"}
-          </div>
-          <div>
-            <p className="text-[12px] font-semibold text-[#fafafa]">Check {c.num} — {c.label}</p>
-            <p className="text-[11px] text-[#71717a] mt-0.5 leading-relaxed">{c.desc}</p>
-          </div>
-        </div>
-      ))}
-
-      <div className="mt-4 p-3 bg-[#09090b] rounded-lg border border-[#27272a]">
-        <p className="text-[10px] font-semibold text-[#52525b] uppercase tracking-widest mb-1">
-          Qualification Rule
-        </p>
-        <p className="text-[11px] text-[#a1a1aa] leading-relaxed">
-          All 3 checks must pass. A 2-of-3 is{" "}
-          <span className="text-red-400 font-semibold">rejected</span>. No exceptions.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function ResultsTable({
-  stocks, isScanning, hasScanned,
-}: {
-  stocks: QualifyingStock[]; isScanning: boolean; hasScanned: boolean;
-}) {
-  const colHeaders = ["Ticker", "Company", "Price", "Fundamental", "Tech Phase", "Smart Money", "Score", ""];
-
-  if (!hasScanned && !isScanning) {
-    return (
-      <div className="bg-[#18181b] border border-[#27272a] rounded-xl p-6 flex flex-col items-center justify-center min-h-[280px] gap-4 text-center">
-        <div className="w-12 h-12 bg-[#27272a] rounded-xl flex items-center justify-center text-xl">⚡</div>
-        <div>
-          <p className="text-[14px] font-semibold text-[#fafafa]">Ready to scan</p>
-          <p className="text-[12px] text-[#52525b] mt-1 max-w-[240px] leading-relaxed">
-            Press RUN SCAN to execute the 3-Check pipeline across your full watchlist
-          </p>
-        </div>
-        <div className="flex gap-4 text-[11px] text-[#52525b]">
-          <span>50 US stocks</span>
-          <span>·</span>
-          <span>20 UK stocks</span>
-        </div>
-      </div>
-    );
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function fmtPrice(v: number, market: string) {
+  if (market === "UK") {
+    return v < 1 ? `${(v * 100).toFixed(1)}p` : `£${v.toFixed(2)}`;
   }
-
-  if (isScanning) {
-    return (
-      <div className="bg-[#18181b] border border-[#27272a] rounded-xl p-6 flex flex-col items-center justify-center min-h-[280px] gap-3">
-        <div className="flex gap-1.5">
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="w-2 h-2 bg-[#fafafa] rounded-full animate-bounce"
-              style={{ animationDelay: `${i * 0.12}s` }}
-            />
-          ))}
-        </div>
-        <p className="text-[13px] font-medium text-[#fafafa]">Running 3-Check pipeline…</p>
-        <p className="text-[11px] text-[#52525b]">Fetching fundamentals · Checking technicals · Verifying smart money</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-[#18181b] border border-[#27272a] rounded-xl p-5">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              {colHeaders.map((h) => (
-                <th key={h} className="text-left text-[10px] font-semibold text-[#52525b] uppercase tracking-widest pb-3 pr-4">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#27272a]">
-            {stocks.map((s) => (
-              <tr key={s.ticker} className="group hover:bg-[#1c1c1f] transition-colors">
-                <td className="py-3 pr-4">
-                  <div className="flex items-center gap-2">
-                    <span>{s.market === "US" ? "🇺🇸" : "🇬🇧"}</span>
-                    <span className="text-[13px] font-bold text-[#fafafa] tracking-wide">{s.ticker}</span>
-                  </div>
-                </td>
-                <td className="py-3 pr-4 text-[12px] text-[#a1a1aa] whitespace-nowrap">{s.company}</td>
-                <td className="py-3 pr-4 text-[13px] font-semibold text-[#fafafa] tabular-nums">{s.price}</td>
-                <td className="py-3 pr-4">
-                  <span className="badge-pass">{s.fundVerdict} ✅</span>
-                </td>
-                <td className="py-3 pr-4">
-                  <span className="badge-stage">{s.techPhase}</span>
-                </td>
-                <td className="py-3 pr-4">
-                  <span className="badge-smart">{s.smartMoney}</span>
-                </td>
-                <td className="py-3 pr-4">
-                  <span className="text-[13px] font-bold text-[#fafafa] tabular-nums">
-                    {s.conviction}<span className="text-[11px] font-normal text-[#52525b]">/10</span>
-                  </span>
-                </td>
-                <td className="py-3">
-                  <Link
-                    href={`/analyzer/${s.ticker}`}
-                    className="text-[10px] font-semibold px-3 py-1.5 rounded-lg bg-transparent border border-[#27272a] text-[#a1a1aa] hover:border-[#fafafa] hover:text-[#fafafa] transition-all no-underline whitespace-nowrap"
-                  >
-                    Deep Analyze →
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center gap-5 mt-4 pt-4 border-t border-[#27272a]">
-        {[
-          { dot: "bg-[#52525b]", text: `Showing ${stocks.length} qualifying stocks` },
-          { dot: "bg-[#52525b]", text: "Last scan: 06:02 UTC" },
-          { dot: "bg-emerald-400", text: "Data quality: HIGH" },
-        ].map((s, i) => (
-          <div key={i} className="flex items-center gap-1.5">
-            <div className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-            <span className="text-[10px] text-[#52525b]">{s.text}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+function fmtMktCap(v: number) {
+  if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
+  return `$${v.toLocaleString()}`;
+}
+
+function convColor(s: number) {
+  if (s >= 9) return "text-emerald-400";
+  if (s >= 7) return "text-amber-400";
+  if (s >= 5) return "text-blue-400";
+  return "text-rose-400";
+}
+
+function chgColor(v: number) {
+  if (v > 0) return "text-emerald-400";
+  if (v < 0) return "text-rose-400";
+  return "text-[#52525b]";
+}
+
+function rsiColor(v: number) {
+  if (v >= 70) return "text-rose-400";
+  if (v >= 50) return "text-amber-400";
+  if (v > 0) return "text-emerald-400";
+  return "text-[#52525b]";
+}
+
+// ─── Filter Constants ────────────────────────────────────────────────────────
+const MARKETS = ["Both", "US", "UK"] as const;
+const CONVICTION_FILTERS = ["All", "High (8–10)", "Medium (5–7)", "Low (1–4)"] as const;
+const THEMES = [
+  "All",
+  "AI Infrastructure",
+  "Semiconductors",
+  "Cloud",
+  "Defence",
+  "Energy",
+  "Healthcare",
+  "Financials",
+  "Consumer",
+] as const;
+
+// ─── Table Header Columns ────────────────────────────────────────────────────
+const COLUMNS = [
+  { key: "conviction", label: "Conv.", align: "text-center" },
+  { key: "ticker", label: "Ticker", align: "text-left" },
+  { key: "company", label: "Company", align: "text-left" },
+  { key: "price", label: "Price", align: "text-right" },
+  { key: "chg", label: "Chg%", align: "text-right" },
+  { key: "mktcap", label: "Mkt Cap", align: "text-right" },
+  { key: "fund", label: "Fundamental", align: "text-center" },
+  { key: "tech", label: "Stage", align: "text-center" },
+  { key: "smart", label: "Smart $", align: "text-left" },
+  { key: "rsi", label: "RSI", align: "text-right" },
+  { key: "entry", label: "Entry Zone", align: "text-right" },
+  { key: "dq", label: "DQ", align: "text-center" },
+  { key: "action", label: "", align: "text-center" },
+] as const;
+
+// ─── Dashboard Page ──────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const [market, setMarket] = useState("Both");
-  const [theme, setTheme] = useState("All");
-  const [conviction, setConviction] = useState("All");
-  const [isScanning, setIsScanning] = useState(false);
-  const [hasScanned, setHasScanned] = useState(false);
+  const [marketFilter, setMarketFilter] = useState<string>("Both");
+  const [themeFilter, setThemeFilter] = useState<string>("All");
+  const [convFilter, setConvFilter] = useState<string>("All");
+  const [sortCol, setSortCol] = useState<string>("conviction");
+  const [sortAsc, setSortAsc] = useState(false);
 
-  const handleScan = () => {
-    setIsScanning(true);
-    setHasScanned(false);
-    setTimeout(() => {
-      setIsScanning(false);
-      setHasScanned(true);
-    }, 2200);
-  };
+  const [scanning, setScanning] = useState(false);
+  const [scanData, setScanData] = useState<ScanResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredStocks = MOCK_STOCKS.filter((s) => {
-    if (market === "US" && s.market !== "US") return false;
-    if (market === "UK" && s.market !== "UK") return false;
-    if (theme !== "All" && s.theme !== theme) return false;
-    if (conviction === "High (8–10)" && s.conviction < 8) return false;
-    if (conviction === "Medium (5–7)" && (s.conviction < 5 || s.conviction > 7)) return false;
+  // ── Run Scan ─────────────────────────────────────────────────────────────
+  const runScan = useCallback(async () => {
+    setScanning(true);
+    setError(null);
+    try {
+      const marketParam =
+        marketFilter === "US" ? "US" : marketFilter === "UK" ? "UK" : "BOTH";
+      const data = await api.scan(marketParam);
+      setScanData(data);
+    } catch (e: any) {
+      setError(e.message || "Scan failed — backend may be cold-starting on Render (takes ~30s)");
+    }
+    setScanning(false);
+  }, [marketFilter]);
+
+  // ── Filter + Sort ────────────────────────────────────────────────────────
+  const stocks = scanData?.qualifying_stocks || [];
+
+  const filtered = stocks.filter((s) => {
+    if (marketFilter !== "Both" && s.market !== marketFilter) return false;
+    if (themeFilter !== "All" && !s.sector?.toLowerCase().includes(themeFilter.toLowerCase()))
+      return false;
+    if (convFilter === "High (8–10)" && s.conviction_score < 8) return false;
+    if (convFilter === "Medium (5–7)" && (s.conviction_score < 5 || s.conviction_score > 7))
+      return false;
+    if (convFilter === "Low (1–4)" && s.conviction_score > 4) return false;
     return true;
   });
 
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    switch (sortCol) {
+      case "conviction": cmp = a.conviction_score - b.conviction_score; break;
+      case "ticker": cmp = a.ticker.localeCompare(b.ticker); break;
+      case "price": cmp = a.price - b.price; break;
+      case "chg": cmp = a.change_pct - b.change_pct; break;
+      case "mktcap": cmp = a.market_cap - b.market_cap; break;
+      case "rsi": cmp = a.rsi14 - b.rsi14; break;
+      default: cmp = a.conviction_score - b.conviction_score;
+    }
+    return sortAsc ? cmp : -cmp;
+  });
+
+  const handleSort = (col: string) => {
+    if (sortCol === col) setSortAsc(!sortAsc);
+    else { setSortCol(col); setSortAsc(false); }
+  };
+
+  // ── KPI Summary ──────────────────────────────────────────────────────────
+  const highConv = stocks.filter((s) => s.conviction_score >= 8).length;
+  const avgConv =
+    stocks.length > 0
+      ? (stocks.reduce((a, b) => a + b.conviction_score, 0) / stocks.length).toFixed(1)
+      : "—";
+  const passAll = stocks.filter((s) => s.check1_pass && s.check2_pass && s.check3_pass).length;
+
   return (
     <div className="space-y-5">
-      {/* Page header */}
-      <div className="flex items-start justify-between">
+      {/* ── Page Header ──────────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-[18px] font-bold tracking-tight text-[#fafafa]">Equity Intelligence</h1>
-          <p className="text-[11px] text-[#52525b] mt-0.5 uppercase tracking-widest">
-            3-Check Institutional Scan · US + UK Markets
+          <h1 className="text-[18px] font-bold tracking-tight text-[#fafafa]">
+            Equity Intelligence
+          </h1>
+          <p className="text-xs text-[#52525b] mt-0.5">
+            3-Check Institutional Scanner · US &amp; UK Markets
           </p>
         </div>
+
         <button
-          onClick={handleScan}
-          disabled={isScanning}
-          className="bg-[#fafafa] hover:bg-[#e4e4e7] disabled:opacity-50 text-[#18181b] font-semibold text-[12px] px-4 py-2 rounded-lg transition-colors flex items-center gap-2 tracking-wide"
+          onClick={runScan}
+          disabled={scanning}
+          className={`px-6 py-2.5 text-xs font-bold rounded-lg transition-all ${
+            scanning
+              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20 cursor-wait"
+              : "bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 active:translate-y-px"
+          }`}
         >
-          <span>⚡</span> RUN SCAN
+          {scanning ? "⚡ Scanning…" : "⚡ Run 3-Check Scan"}
         </button>
       </div>
 
-      {/* Metrics row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricCard label="Scanned"        value="70"  sub="50 US · 20 UK" />
-        <MetricCard label="Qualifying"     value="17"  sub="Pass all 3 checks"   accent="text-emerald-400" />
-        <MetricCard label="High Conviction" value="6"  sub="Score 8–10 / 10"     accent="text-amber-400"  />
-        <MetricCard label="Last Scan"       value="06:02" sub="UTC · Auto scan active" />
-      </div>
-
-      {/* Main content: checks panel + results */}
-      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
-        <ChecksPanel />
-
-        <div className="space-y-3">
-          {/* Filter bar */}
-          <div className="flex flex-wrap items-center gap-2">
-            <FilterGroup options={MARKETS}            active={market}     onChange={setMarket}     />
-            <FilterGroup options={THEMES}             active={theme}      onChange={setTheme}      />
-            <FilterGroup options={CONVICTION_FILTERS} active={conviction} onChange={setConviction} />
-          </div>
-          <ResultsTable stocks={filteredStocks} isScanning={isScanning} hasScanned={hasScanned} />
+      {/* ── KPI Strip ────────────────────────────────────────────────────── */}
+      {scanData && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <KpiCard
+            label="Scanned"
+            value={String(scanData.stocks_scanned)}
+            sub="Total universe"
+          />
+          <KpiCard
+            label="Qualifying"
+            value={String(scanData.qualifying_count)}
+            sub="Passed 3-Check"
+            color="text-emerald-400"
+          />
+          <KpiCard
+            label="High Conviction"
+            value={String(highConv)}
+            sub="Score ≥ 8"
+            color="text-amber-400"
+          />
+          <KpiCard
+            label="Avg Conviction"
+            value={avgConv}
+            sub="Across qualifiers"
+          />
+          <KpiCard
+            label="Scan Time"
+            value={`${(scanData.scan_duration_ms / 1000).toFixed(1)}s`}
+            sub={new Date(scanData.scan_date).toLocaleTimeString()}
+          />
         </div>
-      </div>
+      )}
+
+      {/* ── Filter Bar ───────────────────────────────────────────────────── */}
+      {scanData && (
+        <div className="bg-[#18181b] border border-[#27272a] rounded-xl px-5 py-3 flex items-center gap-3 flex-wrap">
+          <span className="text-[10px] font-semibold text-[#71717a] uppercase tracking-widest mr-1">
+            Filters
+          </span>
+
+          {/* Market */}
+          <select
+            value={marketFilter}
+            onChange={(e) => setMarketFilter(e.target.value)}
+            className="bg-[#09090b] border border-[#27272a] text-[#fafafa] px-3 py-1.5 text-xs rounded focus:outline-none focus:border-amber-500/40"
+          >
+            {MARKETS.map((m) => (
+              <option key={m}>{m}</option>
+            ))}
+          </select>
+
+          {/* Theme */}
+          <select
+            value={themeFilter}
+            onChange={(e) => setThemeFilter(e.target.value)}
+            className="bg-[#09090b] border border-[#27272a] text-[#fafafa] px-3 py-1.5 text-xs rounded focus:outline-none focus:border-amber-500/40"
+          >
+            {THEMES.map((t) => (
+              <option key={t}>{t}</option>
+            ))}
+          </select>
+
+          {/* Conviction */}
+          <select
+            value={convFilter}
+            onChange={(e) => setConvFilter(e.target.value)}
+            className="bg-[#09090b] border border-[#27272a] text-[#fafafa] px-3 py-1.5 text-xs rounded focus:outline-none focus:border-amber-500/40"
+          >
+            {CONVICTION_FILTERS.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+
+          <div className="flex-1" />
+
+          <div className="flex items-center gap-3">
+            {[
+              { dot: "bg-emerald-400", text: `${sorted.length} qualifying` },
+              { dot: "bg-amber-400", text: `${highConv} high conviction` },
+              { dot: "bg-blue-400", text: `${passAll} full 3-check pass` },
+            ].map((s, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <div className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                <span className="text-[10px] text-[#52525b]">{s.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Error ────────────────────────────────────────────────────────── */}
+      {error && (
+        <div className="bg-rose-950/40 border border-rose-800/40 text-rose-400 text-xs px-4 py-3 rounded-lg">
+          ⚠ {error}
+        </div>
+      )}
+
+      {/* ── Loading ──────────────────────────────────────────────────────── */}
+      {scanning && <ScanLoading label="⚡ Running 3-Check Scan across US + UK universe…" />}
+
+      {/* ── Pre-scan state ───────────────────────────────────────────────── */}
+      {!scanning && !scanData && !error && (
+        <div className="bg-[#18181b] border border-[#27272a] rounded-xl p-16 text-center space-y-5">
+          <p className="text-[#a1a1aa] text-sm font-semibold tracking-wider uppercase">
+            Equity Intelligence Command Center
+          </p>
+          <p className="text-xs text-[#52525b] max-w-md mx-auto">
+            Run a full 3-Check institutional scan across 170+ US and UK equities.
+            Only stocks passing Fundamentals, Technicals, AND Smart Money appear.
+          </p>
+          <div className="flex justify-center gap-px mt-4 max-w-lg mx-auto">
+            {[
+              ["01", "Fundamentals", "Revenue · Margins · FCF · Balance Sheet · PEG"],
+              ["02", "Technicals", "Weinstein Stage · MA50/200 · RSI · Volume · Breakout"],
+              ["03", "Smart Money", "13F Institutional · Form 4 Insider · STOCK Act"],
+            ].map(([num, title, desc]) => (
+              <div
+                key={num}
+                className="flex-1 p-4 bg-[#09090b] border border-[#27272a] text-left space-y-1"
+              >
+                <p className="text-[#FFB000] text-[10px] font-semibold tracking-widest">
+                  CHECK {num}
+                </p>
+                <p className="text-[#a1a1aa] text-xs font-semibold">{title}</p>
+                <p className="text-[#52525b] text-[10px]">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Bloomberg-Spec Master Table ──────────────────────────────────── */}
+      {!scanning && scanData && sorted.length > 0 && (
+        <div className="w-full overflow-hidden rounded-lg border border-[#1E2530] bg-[#0C0F16]">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              {/* Header */}
+              <thead>
+                <tr className="bg-[#0A0D14]">
+                  {COLUMNS.map((col) => (
+                    <th
+                      key={col.key}
+                      onClick={() => handleSort(col.key)}
+                      className={`text-[11px] font-bold uppercase tracking-wider text-[#64748B] px-4 py-3 border-b border-[#1E2530] whitespace-nowrap cursor-pointer hover:text-[#94a3b8] transition-colors select-none ${col.align}`}
+                    >
+                      {col.label}
+                      {sortCol === col.key && (
+                        <span className="ml-1 text-amber-500">
+                          {sortAsc ? "↑" : "↓"}
+                        </span>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              {/* Body */}
+              <tbody>
+                {sorted.map((s) => {
+                  const allPass = s.check1_pass && s.check2_pass && s.check3_pass;
+                  return (
+                    <tr
+                      key={s.ticker}
+                      className="border-b border-[#1E2530]/50 last:border-0 hover:bg-[#161C28]/60 transition-colors"
+                    >
+                      {/* Conviction */}
+                      <td className="px-4 py-2.5 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <ConvictionBar score={s.conviction_score} />
+                          <span className={`font-bold font-mono text-sm ${convColor(s.conviction_score)}`}>
+                            {s.conviction_score}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Ticker */}
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px]">
+                            {s.market === "UK" ? "🇬🇧" : "🇺🇸"}
+                          </span>
+                          <span className="font-bold text-[#FFB000] text-sm tracking-wide">
+                            {s.ticker}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Company */}
+                      <td className="px-4 py-2.5 text-xs text-[#a1a1aa] max-w-[160px] truncate">
+                        {s.company_name}
+                      </td>
+
+                      {/* Price */}
+                      <td className="px-4 py-2.5 text-right font-mono text-sm text-[#fafafa] font-semibold tabular-nums">
+                        {fmtPrice(s.price, s.market)}
+                      </td>
+
+                      {/* Change % */}
+                      <td className={`px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums ${chgColor(s.change_pct)}`}>
+                        {s.change_pct > 0 ? "+" : ""}
+                        {s.change_pct.toFixed(1)}%
+                      </td>
+
+                      {/* Market Cap */}
+                      <td className="px-4 py-2.5 text-right font-mono text-xs text-[#a1a1aa] tabular-nums">
+                        {fmtMktCap(s.market_cap)}
+                      </td>
+
+                      {/* Fundamental */}
+                      <td className="px-4 py-2.5 text-center">
+                        <CheckBadge pass={s.check1_pass} />
+                      </td>
+
+                      {/* Technical Stage */}
+                      <td className="px-4 py-2.5 text-center">
+                        <StageTag stage={s.technical_stage} />
+                      </td>
+
+                      {/* Smart Money */}
+                      <td className="px-4 py-2.5 text-xs text-[#a1a1aa]">
+                        {s.smart_money_trigger || "—"}
+                      </td>
+
+                      {/* RSI */}
+                      <td className={`px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums ${rsiColor(s.rsi14)}`}>
+                        {s.rsi14 > 0 ? s.rsi14.toFixed(0) : "—"}
+                      </td>
+
+                      {/* Entry Zone */}
+                      <td className="px-4 py-2.5 text-right font-mono text-xs text-blue-400 whitespace-nowrap tabular-nums">
+                        {s.entry_zone || "—"}
+                      </td>
+
+                      {/* Data Quality */}
+                      <td className="px-4 py-2.5 text-center">
+                        <DataQualityBadge quality={s.data_quality} />
+                      </td>
+
+                      {/* Action */}
+                      <td className="px-4 py-2.5 text-center">
+                        <Link
+                          href={`/analyzer?ticker=${s.ticker}&market=${s.market}`}
+                          className="text-[10px] font-semibold px-3 py-1.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20 transition-colors no-underline whitespace-nowrap"
+                        >
+                          Deep Analyze →
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── Table Footer / Legend ───────────────────────────────────── */}
+          <div className="grid grid-cols-2 gap-6 border-t border-[#1E2530] bg-[#0A0D14] p-4 text-[11px] text-[#64748B]">
+            {/* Conviction Legend */}
+            <div className="space-y-1.5">
+              <p className="font-semibold text-[#94a3b8] uppercase tracking-wider text-[10px]">
+                Conviction Tiers
+              </p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-0.5 h-3 rounded-full bg-emerald-400" />
+                  <span>9–10 Maximum Conviction</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-0.5 h-3 rounded-full bg-amber-400" />
+                  <span>7–8 High Conviction</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-0.5 h-3 rounded-full bg-blue-400" />
+                  <span>5–6 Moderate</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-0.5 h-3 rounded-full bg-rose-400" />
+                  <span>1–4 Low — Monitor Only</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Data Quality Legend */}
+            <div className="space-y-1.5">
+              <p className="font-semibold text-[#94a3b8] uppercase tracking-wider text-[10px]">
+                Data Quality
+              </p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <DataQualityBadge quality="HIGH" />
+                  <span>Mkt cap &gt;$10B · Primary sources verified</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <DataQualityBadge quality="MEDIUM" />
+                  <span>Mkt cap $1B–$10B · Some data gaps</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <DataQualityBadge quality="LOW" />
+                  <span>Mkt cap &lt;$1B · Limited coverage</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-[#3f3f46] mt-2">
+                3-Check Rule: Only stocks passing ALL three checks (Fundamental +
+                Technical + Smart Money) qualify. 2/3 = rejected.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── No Results ───────────────────────────────────────────────────── */}
+      {!scanning && scanData && sorted.length === 0 && (
+        <EmptyState
+          title="No stocks match current filters"
+          subtitle="Adjust market, theme, or conviction filters, or run a new scan."
+        />
+      )}
+
+      {/* ── Footer Disclaimer ────────────────────────────────────────────── */}
+      <p className="text-[10px] text-[#27272a] text-center">
+        AlphaResearch Institutional Equity Intelligence · Data from Yahoo
+        Finance + SEC EDGAR · Not financial advice
+      </p>
     </div>
   );
 }
-'@
