@@ -19,7 +19,7 @@ function AnalyzerInner(){
   const stshort=(st:string)=>st?.includes("Stage 2")?"STG2 Markup":st?.includes("Stage 1")?"STG1 Accumulation":"STG3/4 Avoid";
   return(
     <>
-      <div className="space-y-6">
+      <main className="max-w-[1600px] mx-auto p-4 md:p-6 space-y-6">
         {/* SEARCH */}
         <div className="bg-[#18181b] border border-[#27272a] rounded-xl p-5 flex items-center gap-3 flex-wrap">
           <p className="text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider mr-2">Deep Analyzer</p>
@@ -107,6 +107,8 @@ function AnalyzerInner(){
             )}
           </>
         )}
+      </main>
+    </>
   );
 }
 export default function AnalyzerPage() {
