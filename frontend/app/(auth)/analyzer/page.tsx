@@ -1,269 +1,113 @@
 ﻿"use client";
-import React, { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
-
-const BACKEND = "https://alpha-research-center-backend.onrender.com";
-
-interface AnalysisResult {
-  ticker: string; company_name: string; market: string;
-  price: number; change_pct: number; market_cap: number;
-  check1_pass: boolean; check2_pass: boolean;
-  technical_stage: string; conviction_score: number;
-  rsi14: number; ma50: number; ma200: number;
-  golden_cross: boolean; entry_zone: string;
-  support_level: number; resistance_level: number;
-  week52_high: number; week52_low: number;
-  revenue_growth: number; net_margin: number; pe_ratio: number;
-  data_quality: string; narrative: string; sector: string;
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = React.useState(false);
-  const copy = () => { navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); }); };
-  return (
-    <button onClick={copy} style={{background:copied?"rgba(34,197,94,0.15)":"transparent",border:`1px solid ${copied?"#22c55e44":"#253345"}`,color:copied?"#22c55e":"#4a5568",fontSize:"9px",padding:"3px 8px",cursor:"pointer",letterSpacing:"0.05em"}}>
-      {copied?"✓ COPIED":"⧉ COPY"}
-    </button>
-  );
-}
-
-function addToWatchlist(ticker: string, market: string, data: AnalysisResult | null) {
-  try {
-    const existing = JSON.parse(localStorage.getItem("alpha_watchlist_v3")||"[]");
-    if (existing.find((i: any) => i.ticker===ticker)) { alert(ticker+" already in watchlist"); return; }
-    const item = {
-      id: Date.now().toString(), ticker, market, sector: data?.sector||"",
-      theme: "", added: new Date().toISOString().split("T")[0],
-      notes: data ? `${data.technical_stage} | Conv:${data.conviction_score}/10 | Entry:${data.entry_zone}` : "",
-      score: data?.conviction_score||0, c1_pass: data?.check1_pass||false,
-      c2_pass: data?.check2_pass||false, stage: data?.technical_stage||"",
-      rsi: data?.rsi14||0, entry_zone: data?.entry_zone||"", graduated: false
-    };
-    localStorage.setItem("alpha_watchlist_v3", JSON.stringify([...existing, item]));
-    alert("✅ "+ticker+" added to watchlist!");
-  } catch(e) { alert("Failed"); }
-}
-
-export default function Analyzer() {
-  const searchParams = useSearchParams();
-  const [ticker, setTicker] = useState(searchParams?.get("ticker")||"");
-  const [market, setMarket] = useState(searchParams?.get("market")||"US");
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<AnalysisResult|null>(null);
-  const [error, setError] = useState<string|null>(null);
-
-  useEffect(() => {
-    const t = searchParams?.get("ticker");
-    if (t) { setTicker(t); setMarket(searchParams?.get("market")||"US"); }
-  }, [searchParams]);
-
-  const analyze = async () => {
-    if (!ticker.trim()) { setError("ENTER A TICKER SYMBOL"); return; }
-    setLoading(true); setError(null); setData(null);
-    try {
-      const res = await fetch(`${BACKEND}/analyze/${ticker.trim().toUpperCase()}?market=${market}`);
-      if (!res.ok) throw new Error("Analysis failed "+res.status);
-      setData(await res.json());
-    } catch(e: any) { setError(e.message||"Analysis failed — backend may be waking up"); }
-    setLoading(false);
-  };
-
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",timeZone:"America/New_York"})+" EST";
-  const dateStr = now.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}).toUpperCase();
-
-  const convColor = (s: number) => s>=9?"#22c55e":s>=7?"#f59e0b":s>=5?"#60a5fa":"#ef4444";
-  const stageColor = (st: string) => st?.includes("Stage 2")?"#22c55e":st?.includes("Stage 1")?"#60a5fa":"#ef4444";
-  const stageShort = (st: string) => st?.includes("Stage 2")?"STG2 MARKUP":st?.includes("Stage 1")?"STG1 ACCUMULATION":"STG3/4 AVOID";
-
-  return (
-    <div style={{minHeight:"100vh",background:"#060d18",fontFamily:"'SF Mono','Fira Code','Consolas',monospace",color:"#e2e8f0"}}>
-
-      {/* TOP BAR */}
-      <div style={{position:"fixed",top:0,left:0,right:0,zIndex:50,background:"#04080f",borderBottom:"1px solid #1a2535",display:"flex",alignItems:"center",justifyContent:"space-between",height:"44px"}}>
-        <div style={{display:"flex",alignItems:"center",height:"100%"}}>
-          <div style={{background:"#f59e0b",color:"#000",fontSize:"11px",fontWeight:"700",padding:"0 14px",height:"100%",display:"flex",alignItems:"center",letterSpacing:"0.08em"}}>ALPHA<span style={{opacity:0.6}}>RESEARCH</span></div>
-          {[["dashboard","COMMAND CTR"],["analyzer","ANALYZER"],["watchlist","WATCHLIST"],["portfolio","PORTFOLIO"],["journal","JOURNAL"]].map(([href,label])=>(
-            <a key={href} href={"/"+href} style={{display:"flex",alignItems:"center",height:"100%",padding:"0 14px",textDecoration:"none",fontSize:"10px",letterSpacing:"0.06em",borderBottom:href==="analyzer"?"2px solid #f59e0b":"2px solid transparent",color:href==="analyzer"?"#f59e0b":"#4a5568",fontWeight:href==="analyzer"?"700":"400"}}>{label}</a>
-          ))}
+import React,{useState,useEffect}from"react";
+import{useSearchParams}from"next/navigation";
+const BACKEND="https://alpha-research-center-backend.onrender.com";
+interface AnalysisResult{ticker:string;company_name:string;market:string;price:number;change_pct:number;market_cap:number;check1_pass:boolean;check2_pass:boolean;technical_stage:string;conviction_score:number;rsi14:number;ma50:number;ma200:number;golden_cross:boolean;entry_zone:string;support_level:number;resistance_level:number;week52_high:number;week52_low:number;revenue_growth:number;net_margin:number;pe_ratio:number;data_quality:string;narrative:string;sector:string;}
+function Navbar({active}:{active:string}){return(<nav className="bg-[#18181b]/80 backdrop-blur-md border-b border-[#27272a] sticky top-0 z-50 px-6 h-14 flex items-center justify-between"><span className="text-[#fafafa] font-bold tracking-tight text-sm uppercase">AlphaResearch</span><div className="flex items-center gap-6">{[["dashboard","Dashboard"],["analyzer","Analyzer"],["watchlist","Watchlist"],["portfolio","Portfolio"],["journal","Journal"]].map(([href,label])=><a key={href} href={"/"+href} className={active===href?"text-[#fafafa] font-medium text-sm border-b-2 border-[#fafafa] h-14 flex items-center px-1":"text-[#a1a1aa] hover:text-[#fafafa] font-medium text-sm transition-colors h-14 flex items-center px-1"}>{label}</a>)}</div><div className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"/>LIVE</div></nav>);}
+function KpiCard({label,value,sub,color}:{label:string;value:string;sub:string;color?:string}){return(<div className="bg-[#18181b] border border-[#27272a] rounded-xl p-5 shadow-sm space-y-1.5"><p className="text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider">{label}</p><p className={`text-2xl font-bold tracking-tight font-mono ${color||"text-[#fafafa]"}`}>{value}</p><p className="text-xs text-[#52525b]">{sub}</p></div>);}
+function CopyBtn({text}:{text:string}){const[c,setC]=React.useState(false);return(<button onClick={()=>{navigator.clipboard.writeText(text).then(()=>{setC(true);setTimeout(()=>setC(false),2500);});}} className={`text-[11px] px-2.5 py-1 rounded border transition-colors ${c?"bg-emerald-500/10 text-emerald-400 border-emerald-500/20":"bg-[#27272a] text-[#a1a1aa] border-[#3f3f46] hover:text-[#fafafa]"}`}>{c?"✓ Copied":"⧉ Copy"}</button>);}
+function ConvBar({score}:{score:number}){return(<div className="flex space-x-0.5 h-1.5 w-16 bg-slate-800 rounded-sm overflow-hidden">{Array.from({length:10},(_,i)=>{const lit=i<score;const col=score>=9?"bg-emerald-500":score>=7?"bg-amber-500":score>=5?"bg-blue-500":"bg-rose-500";return<div key={i} className={`flex-1 ${lit?col:"bg-slate-700"}`}/>;})}</div>);}
+function addToWatchlist(ticker:string,market:string,data:AnalysisResult|null){try{const existing=JSON.parse(localStorage.getItem("alpha_watchlist_v3")||"[]");if(existing.find((i:any)=>i.ticker===ticker)){alert(ticker+" already in watchlist");return;}const item={id:Date.now().toString(),ticker,market,sector:data?.sector||"",theme:"",added:new Date().toISOString().split("T")[0],notes:data?`${data.technical_stage} | Conv:${data.conviction_score}/10 | Entry:${data.entry_zone}`:"",score:data?.conviction_score||0,c1_pass:data?.check1_pass||false,c2_pass:data?.check2_pass||false,stage:data?.technical_stage||"",rsi:data?.rsi14||0,entry_zone:data?.entry_zone||"",graduated:false};localStorage.setItem("alpha_watchlist_v3",JSON.stringify([...existing,item]));alert("✅ "+ticker+" added to watchlist!");}catch(e){alert("Failed");}}
+export default function Analyzer(){
+  const searchParams=useSearchParams();
+  const[ticker,setTicker]=useState(searchParams?.get("ticker")||"");const[market,setMarket]=useState(searchParams?.get("market")||"US");const[loading,setLoading]=useState(false);const[data,setData]=useState<AnalysisResult|null>(null);const[error,setError]=useState<string|null>(null);
+  useEffect(()=>{const t=searchParams?.get("ticker");if(t){setTicker(t);setMarket(searchParams?.get("market")||"US");}},[searchParams]);
+  const analyze=async()=>{if(!ticker.trim()){setError("Enter a ticker symbol");return;}setLoading(true);setError(null);setData(null);try{const res=await fetch(`${BACKEND}/analyze/${ticker.trim().toUpperCase()}?market=${market}`);if(!res.ok)throw new Error("Analysis failed "+res.status);setData(await res.json());}catch(e:any){setError(e.message||"Analysis failed — backend may be waking up");}setLoading(false);};
+  const ccolor=(s:number)=>s>=9?"text-emerald-400":s>=7?"text-amber-400":s>=5?"text-blue-400":"text-rose-400";
+  const stcolor=(st:string)=>st?.includes("Stage 2")?"text-emerald-400":st?.includes("Stage 1")?"text-blue-400":"text-rose-400";
+  const stshort=(st:string)=>st?.includes("Stage 2")?"STG2 Markup":st?.includes("Stage 1")?"STG1 Accumulation":"STG3/4 Avoid";
+  return(
+    <div className="min-h-screen bg-[#09090b] text-[#fafafa] font-sans antialiased">
+      <Navbar active="analyzer"/>
+      <main className="max-w-[1600px] mx-auto p-4 md:p-6 space-y-6">
+        {/* SEARCH */}
+        <div className="bg-[#18181b] border border-[#27272a] rounded-xl p-5 flex items-center gap-3 flex-wrap">
+          <p className="text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider mr-2">Deep Analyzer</p>
+          <input value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&analyze()} placeholder="Enter ticker..." className="bg-[#09090b] border border-[#27272a] text-[#FFB000] font-bold px-3 py-2 text-base rounded focus:outline-none focus:border-amber-500/50 w-36 tracking-wider"/>
+          <select value={market} onChange={e=>setMarket(e.target.value)} className="bg-[#09090b] border border-[#27272a] text-[#fafafa] px-3 py-2 text-xs rounded focus:outline-none"><option value="US">🇺🇸 US NYSE/NASDAQ</option><option value="UK">🇬🇧 UK LSE/AIM</option></select>
+          <button onClick={analyze} disabled={loading} className={`px-5 py-2 text-xs font-bold rounded transition-all ${loading?"bg-amber-500/10 text-amber-400 border border-amber-500/20 cursor-not-allowed":"bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20"}`}>{loading?"Analyzing...":"⚡ Analyze"}</button>
+          {data&&<><button onClick={()=>addToWatchlist(data.ticker,data.market,data)} className="px-4 py-2 text-xs font-medium rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20 transition-colors">+ Watchlist</button><div className="flex-1"/><CopyBtn text={`${data.ticker} | $${data.price} | ${data.technical_stage} | Conv:${data.conviction_score}/10 | Entry:${data.entry_zone}\n\n${data.narrative||""}`}/></>}
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:"16px",paddingRight:"16px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:"4px"}}><div style={{width:"5px",height:"5px",borderRadius:"50%",background:"#22c55e"}}></div><span style={{color:"#22c55e",fontSize:"9px",letterSpacing:"0.08em"}}>LIVE</span></div>
-          <span style={{color:"#253345",fontSize:"9px"}}>{dateStr} {timeStr}</span>
-        </div>
-      </div>
-
-      <div style={{paddingTop:"44px"}}>
-
-        {/* SEARCH BAR */}
-        <div style={{background:"#04080f",borderBottom:"1px solid #1a2535",padding:"12px 14px",display:"flex",alignItems:"center",gap:"8px"}}>
-          <div style={{color:"#374151",fontSize:"8px",letterSpacing:"0.1em",marginRight:"8px"}}>DEEP ANALYZER</div>
-          <input value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&analyze()} placeholder="ENTER TICKER..."
-            style={{background:"#060d18",border:"1px solid #1a2535",color:"#f59e0b",padding:"7px 12px",fontSize:"14px",fontWeight:"700",fontFamily:"inherit",outline:"none",width:"160px",letterSpacing:"0.06em"}}/>
-          <select value={market} onChange={e=>setMarket(e.target.value)} style={{background:"#060d18",border:"1px solid #1a2535",color:"#e2e8f0",padding:"7px 10px",fontSize:"10px",fontFamily:"inherit",outline:"none"}}>
-            <option value="US">🇺🇸 US NYSE/NASDAQ</option>
-            <option value="UK">🇬🇧 UK LSE/AIM</option>
-          </select>
-          <button onClick={analyze} disabled={loading} style={{background:loading?"#1a1200":"#f59e0b",border:"none",color:loading?"#f59e0b":"#000",fontSize:"10px",fontWeight:"700",padding:"7px 20px",cursor:loading?"not-allowed":"pointer",letterSpacing:"0.08em"}}>
-            {loading?"ANALYZING...":"⚡ ANALYZE"}
-          </button>
-          {data&&<>
-            <button onClick={()=>addToWatchlist(data.ticker,data.market,data)} style={{background:"transparent",border:"1px solid #22c55e44",color:"#22c55e",fontSize:"9px",padding:"6px 12px",cursor:"pointer",letterSpacing:"0.06em"}}>+ WATCHLIST</button>
-            <div style={{flex:1}}></div>
-            <CopyButton text={`${data.ticker} | $${data.price} | ${data.technical_stage} | Conv:${data.conviction_score}/10 | Entry:${data.entry_zone}\n\n${data.narrative||""}`}/>
-          </>}
-        </div>
-
-        {error&&<div style={{padding:"8px 14px",background:"#1a0505",borderBottom:"1px solid #ef444433",color:"#ef4444",fontSize:"9px",letterSpacing:"0.06em"}}>⚠ {error}</div>}
-
-        {loading&&(
-          <div style={{padding:"80px 0",textAlign:"center"}}>
-            <div style={{color:"#f59e0b",fontSize:"11px",letterSpacing:"0.1em",marginBottom:"8px"}}>⚡ ANALYZING {ticker}</div>
-            <div style={{color:"#253345",fontSize:"9px",letterSpacing:"0.08em"}}>FUNDAMENTALS · TECHNICALS · SMART MONEY · NARRATIVE GENERATION</div>
-          </div>
-        )}
-
-        {/* EMPTY STATE */}
+        {error&&<div className="bg-rose-950/40 border border-rose-800/40 text-rose-400 text-xs px-4 py-3 rounded-lg">⚠ {error}</div>}
+        {loading&&<div className="bg-[#18181b] border border-[#27272a] rounded-xl p-16 text-center space-y-3"><p className="text-amber-400 text-sm font-semibold tracking-wider">⚡ Analyzing {ticker}</p><p className="text-xs text-[#52525b] tracking-wider">Fundamentals · Technicals · Smart Money · Narrative Generation</p></div>}
         {!loading&&!data&&!error&&(
-          <div style={{padding:"80px 0",textAlign:"center"}}>
-            <div style={{color:"#253345",fontSize:"11px",letterSpacing:"0.1em",marginBottom:"8px"}}>SINGLE STOCK DEEP ANALYZER</div>
-            <div style={{color:"#1a2535",fontSize:"9px",letterSpacing:"0.08em",marginBottom:"24px"}}>ENTER ANY US OR UK TICKER FOR FULL INSTITUTIONAL ANALYSIS</div>
-            <div style={{display:"flex",justifyContent:"center",gap:"0",maxWidth:"540px",margin:"0 auto"}}>
-              {[["FUNDAMENTALS","Revenue · Margins · FCF · Balance Sheet · PEG"],["TECHNICALS","Weinstein Stage · MA50/200 · RSI · MACD · Support"],["NARRATIVE","AI-generated Goldman Sachs-grade research note"]].map((c,i)=>(
-                <div key={c[0]} style={{flex:1,padding:"14px 12px",border:"1px solid #1a2535",borderRight:i<2?"none":"1px solid #1a2535",textAlign:"left"}}>
-                  <div style={{color:"#f59e0b",fontSize:"8px",letterSpacing:"0.08em",marginBottom:"4px"}}>0{i+1}</div>
-                  <div style={{color:"#374151",fontSize:"10px",fontWeight:"600",marginBottom:"3px"}}>{c[0]}</div>
-                  <div style={{color:"#253345",fontSize:"8px"}}>{c[1]}</div>
+          <div className="bg-[#18181b] border border-[#27272a] rounded-xl p-16 text-center space-y-4">
+            <p className="text-[#a1a1aa] text-sm font-semibold tracking-wider uppercase">Single Stock Deep Analyzer</p>
+            <p className="text-xs text-[#52525b]">Enter any US or UK ticker for full institutional analysis</p>
+            <div className="flex justify-center gap-px mt-4 max-w-lg mx-auto">
+              {[["01","Fundamentals","Revenue · Margins · FCF · Balance Sheet · PEG"],["02","Technicals","Weinstein Stage · MA50/200 · RSI · MACD · Support"],["03","Narrative","AI-generated Goldman Sachs-grade research note"]].map((c,i)=>(
+                <div key={c[0]} className="flex-1 p-4 bg-[#09090b] border border-[#27272a] text-left space-y-1">
+                  <p className="text-[#FFB000] text-[10px] font-semibold tracking-widest">{c[0]}</p>
+                  <p className="text-[#a1a1aa] text-xs font-semibold">{c[1]}</p>
+                  <p className="text-[#52525b] text-[10px]">{c[2]}</p>
                 </div>
               ))}
             </div>
           </div>
         )}
-
-        {/* RESULTS */}
         {data&&!loading&&(
-          <div>
-            {/* HEADER STRIP */}
-            <div style={{display:"grid",gridTemplateColumns:"auto 1fr repeat(5,auto)",alignItems:"center",gap:"0",borderBottom:"1px solid #1a2535",padding:"12px 14px",background:"#04080f"}}>
-              <div style={{marginRight:"20px"}}>
-                <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
-                  <div style={{width:"4px",height:"40px",background:convColor(data.conviction_score),borderRadius:"1px"}}></div>
-                  <div>
-                    <div style={{color:"#f59e0b",fontSize:"22px",fontWeight:"700",letterSpacing:"0.04em"}}>{data.ticker}</div>
-                    <div style={{color:"#374151",fontSize:"9px",letterSpacing:"0.06em"}}>{data.market==="US"?"NYSE/NASDAQ":"LSE/AIM"}</div>
-                  </div>
-                </div>
+          <>
+            {/* HEADER KPIS */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <KpiCard label="Price" value={`$${data.price?.toFixed(2)||"—"}`} sub={data.company_name} color="text-[#fafafa]"/>
+              <KpiCard label="Change" value={data.change_pct?`${data.change_pct>0?"+":""}${data.change_pct.toFixed(1)}%`:"—"} sub="vs prev close" color={data.change_pct>0?"text-emerald-400":"text-rose-400"}/>
+              <KpiCard label="Mkt Cap" value={data.market_cap?`$${(data.market_cap/1e9).toFixed(1)}B`:"—"} sub={data.sector||"—"}/>
+              <KpiCard label="Stage" value={stshort(data.technical_stage)} sub={`RSI ${data.rsi14?.toFixed(0)||"—"}`} color={stcolor(data.technical_stage)}/>
+              <div className="bg-[#18181b] border border-[#27272a] rounded-xl p-5 shadow-sm space-y-2">
+                <p className="text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider">Conviction</p>
+                <div className="flex items-center gap-3"><ConvBar score={data.conviction_score}/><span className={`text-2xl font-bold font-mono ${ccolor(data.conviction_score)}`}>{data.conviction_score}/10</span></div>
+                <p className="text-xs text-[#52525b]">{data.conviction_score>=8?"High confidence":"Moderate"}</p>
               </div>
-              <div>
-                <div style={{color:"#e2e8f0",fontSize:"13px",fontWeight:"600"}}>{data.company_name}</div>
-                <div style={{color:"#374151",fontSize:"9px",marginTop:"2px"}}>{data.sector||"—"}</div>
-              </div>
-              {[
-                {label:"PRICE",value:`$${data.price?.toFixed(2)||"—"}`,color:"#e2e8f0"},
-                {label:"CHG%",value:data.change_pct?`${data.change_pct>0?"+":""}${data.change_pct.toFixed(1)}%`:"—",color:data.change_pct>0?"#22c55e":data.change_pct<0?"#ef4444":"#94a3b8"},
-                {label:"MKT CAP",value:data.market_cap?`$${(data.market_cap/1e9).toFixed(1)}B`:"—",color:"#94a3b8"},
-                {label:"STAGE",value:stageShort(data.technical_stage),color:stageColor(data.technical_stage)},
-                {label:"CONVICTION",value:`${data.conviction_score}/10`,color:convColor(data.conviction_score)},
-              ].map(s=>(
-                <div key={s.label} style={{padding:"0 16px",borderLeft:"1px solid #1a2535"}}>
-                  <div style={{color:"#374151",fontSize:"8px",letterSpacing:"0.08em",marginBottom:"3px"}}>{s.label}</div>
-                  <div style={{color:s.color,fontSize:"14px",fontWeight:"700",fontFamily:"monospace"}}>{s.value}</div>
+            </div>
+            {/* 3-CHECK PANELS */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {[{num:"01",name:"Fundamentals",pass:data.check1_pass,detail:"Revenue · Margins · FCF · Balance Sheet · Valuation"},{num:"02",name:"Technicals",pass:data.check2_pass,detail:"Weinstein Stage 1 or Stage 2 · MA50/200 · Volume"},{num:"03",name:"Conviction",pass:data.conviction_score>=7,detail:`Score ${data.conviction_score}/10 — ${data.conviction_score>=8?"HIGH":data.conviction_score>=6?"MEDIUM":"LOW"} conviction`}].map(c=>(
+                <div key={c.num} className={`bg-[#18181b] border rounded-xl p-5 space-y-2 ${c.pass?"border-emerald-800/40":"border-rose-800/40"}`}>
+                  <div className="flex items-center gap-2"><span className="text-xs text-[#52525b] uppercase tracking-widest">Check {c.num}</span><span className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-wide font-sans ${c.pass?"bg-emerald-950/80 text-emerald-400 border border-emerald-800/40":"bg-rose-950/80 text-rose-400 border border-rose-800/40"}`}>{c.pass?"PASS":"FAIL"}</span></div>
+                  <p className={`text-sm font-bold ${c.pass?"text-emerald-400":"text-rose-400"}`}>{c.name}</p>
+                  <p className="text-xs text-[#52525b]">{c.detail}</p>
                 </div>
               ))}
             </div>
-
-            {/* 3-CHECK VERDICTS */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",borderBottom:"1px solid #1a2535"}}>
-              {[
-                {num:"01",name:"FUNDAMENTALS",pass:data.check1_pass,detail:"Revenue · Margins · FCF · Balance Sheet · Valuation"},
-                {num:"02",name:"TECHNICALS",pass:data.check2_pass,detail:"Weinstein Stage 1 or Stage 2 · MA50/200 · Volume"},
-                {num:"03",name:"CONVICTION",pass:data.conviction_score>=7,detail:`Score ${data.conviction_score}/10 — ${data.conviction_score>=8?"HIGH":data.conviction_score>=6?"MEDIUM":"LOW"} conviction`},
-              ].map((c,i)=>(
-                <div key={c.num} style={{padding:"12px 14px",borderRight:i<2?"1px solid #1a2535":"none",background:c.pass?"rgba(5,46,22,0.3)":"rgba(26,5,5,0.3)"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}>
-                    <span style={{color:"#374151",fontSize:"8px",letterSpacing:"0.08em"}}>CHECK {c.num}</span>
-                    <span style={{background:c.pass?"#052e16":"#1a0505",color:c.pass?"#22c55e":"#ef4444",fontSize:"8px",padding:"2px 8px",letterSpacing:"0.06em"}}>{c.pass?"PASS":"FAIL"}</span>
-                  </div>
-                  <div style={{color:c.pass?"#22c55e":"#ef4444",fontSize:"13px",fontWeight:"700",letterSpacing:"0.04em",marginBottom:"3px"}}>{c.name}</div>
-                  <div style={{color:"#374151",fontSize:"9px"}}>{c.detail}</div>
-                </div>
-              ))}
-            </div>
-
             {/* DATA GRID */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",borderBottom:"1px solid #1a2535"}}>
-              {/* TECHNICALS */}
-              <div style={{borderRight:"1px solid #1a2535"}}>
-                <div style={{padding:"8px 14px",background:"#04080f",borderBottom:"1px solid #1a2535"}}>
-                  <span style={{color:"#374151",fontSize:"8px",letterSpacing:"0.1em"}}>TECHNICAL ANALYSIS</span>
-                </div>
-                <div style={{padding:"10px 14px"}}>
-                  {[
-                    ["STAGE",stageShort(data.technical_stage),stageColor(data.technical_stage)],
-                    ["RSI (14)",data.rsi14?.toFixed(1)||"—",data.rsi14>70?"#ef4444":data.rsi14>50?"#f59e0b":"#22c55e"],
-                    ["MA 50-DAY",data.ma50?`$${data.ma50.toFixed(2)}`:"—",data.price>data.ma50?"#22c55e":"#ef4444"],
-                    ["MA 200-DAY",data.ma200?`$${data.ma200.toFixed(2)}`:"—",data.price>data.ma200?"#22c55e":"#ef4444"],
-                    ["GOLDEN CROSS",data.golden_cross?"YES ✓":"NO",data.golden_cross?"#22c55e":"#ef4444"],
-                    ["ENTRY ZONE",data.entry_zone||"—","#60a5fa"],
-                    ["SUPPORT",data.support_level?`$${data.support_level.toFixed(2)}`:"—","#22c55e"],
-                    ["RESISTANCE",data.resistance_level?`$${data.resistance_level.toFixed(2)}`:"—","#ef4444"],
-                    ["52W HIGH",data.week52_high?`$${data.week52_high.toFixed(2)}`:"—","#94a3b8"],
-                    ["52W LOW",data.week52_low?`$${data.week52_low.toFixed(2)}`:"—","#94a3b8"],
-                  ].map(([k,v,c])=>(
-                    <div key={String(k)} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #0d1520"}}>
-                      <span style={{color:"#374151",fontSize:"9px",letterSpacing:"0.04em"}}>{k}</span>
-                      <span style={{color:String(c),fontSize:"10px",fontFamily:"monospace",fontWeight:"600"}}>{v}</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="w-full overflow-hidden rounded-lg border border-[#1E2530] bg-[#0C0F16]">
+                <div className="px-4 py-3 bg-[#0A0D14] border-b border-[#1E2530]"><span className="text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider">Technical Analysis</span></div>
+                <div className="divide-y divide-[#1E2530]/50">
+                  {[["Stage",stshort(data.technical_stage),stcolor(data.technical_stage)],["RSI (14)",data.rsi14?.toFixed(1)||"—",data.rsi14>70?"text-rose-400":data.rsi14>50?"text-amber-400":"text-emerald-400"],["MA 50-Day",data.ma50?`$${data.ma50.toFixed(2)}`:"—",data.price>data.ma50?"text-emerald-400":"text-rose-400"],["MA 200-Day",data.ma200?`$${data.ma200.toFixed(2)}`:"—",data.price>data.ma200?"text-emerald-400":"text-rose-400"],["Golden Cross",data.golden_cross?"YES ✓":"NO",data.golden_cross?"text-emerald-400":"text-rose-400"],["Entry Zone",data.entry_zone||"—","text-blue-400"],["Support",data.support_level?`$${data.support_level.toFixed(2)}`:"—","text-emerald-400"],["Resistance",data.resistance_level?`$${data.resistance_level.toFixed(2)}`:"—","text-rose-400"],["52W High",data.week52_high?`$${data.week52_high.toFixed(2)}`:"—","text-[#a1a1aa]"],["52W Low",data.week52_low?`$${data.week52_low.toFixed(2)}`:"—","text-[#a1a1aa]"]].map(([k,v,c])=>(
+                    <div key={String(k)} className="flex justify-between items-center px-4 py-2.5 text-xs hover:bg-[#161C28]/60 transition-colors">
+                      <span className="text-[#64748B]">{k}</span>
+                      <span className={`font-mono font-semibold ${c}`}>{v}</span>
                     </div>
                   ))}
                 </div>
               </div>
-
-              {/* FUNDAMENTALS */}
-              <div>
-                <div style={{padding:"8px 14px",background:"#04080f",borderBottom:"1px solid #1a2535"}}>
-                  <span style={{color:"#374151",fontSize:"8px",letterSpacing:"0.1em"}}>FUNDAMENTAL ANALYSIS</span>
-                </div>
-                <div style={{padding:"10px 14px"}}>
-                  {[
-                    ["REVENUE GROWTH",data.revenue_growth?`${data.revenue_growth.toFixed(1)}%`:"N/A",data.revenue_growth>20?"#22c55e":data.revenue_growth>0?"#f59e0b":"#ef4444"],
-                    ["NET MARGIN",data.net_margin?`${data.net_margin.toFixed(1)}%`:"N/A",data.net_margin>15?"#22c55e":data.net_margin>0?"#f59e0b":"#ef4444"],
-                    ["P/E RATIO",data.pe_ratio?data.pe_ratio.toFixed(1):"N/A",data.pe_ratio>0&&data.pe_ratio<25?"#22c55e":data.pe_ratio>40?"#ef4444":"#f59e0b"],
-                    ["DATA QUALITY",data.data_quality||"MEDIUM",data.data_quality==="HIGH"?"#22c55e":data.data_quality==="LOW"?"#ef4444":"#f59e0b"],
-                    ["C1 VERDICT",data.check1_pass?"PASS":"FAIL",data.check1_pass?"#22c55e":"#ef4444"],
-                    ["C2 VERDICT",data.check2_pass?"PASS":"FAIL",data.check2_pass?"#22c55e":"#ef4444"],
-                    ["CONVICTION",`${data.conviction_score}/10`,convColor(data.conviction_score)],
-                    ["MARKET",data.market==="US"?"NYSE/NASDAQ":"LSE/AIM","#94a3b8"],
-                  ].map(([k,v,c])=>(
-                    <div key={String(k)} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #0d1520"}}>
-                      <span style={{color:"#374151",fontSize:"9px",letterSpacing:"0.04em"}}>{k}</span>
-                      <span style={{color:String(c),fontSize:"10px",fontFamily:"monospace",fontWeight:"600"}}>{v}</span>
+              <div className="w-full overflow-hidden rounded-lg border border-[#1E2530] bg-[#0C0F16]">
+                <div className="px-4 py-3 bg-[#0A0D14] border-b border-[#1E2530]"><span className="text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider">Fundamental Analysis</span></div>
+                <div className="divide-y divide-[#1E2530]/50">
+                  {[["Revenue Growth",data.revenue_growth?`${data.revenue_growth.toFixed(1)}%`:"N/A",data.revenue_growth>20?"text-emerald-400":data.revenue_growth>0?"text-amber-400":"text-rose-400"],["Net Margin",data.net_margin?`${data.net_margin.toFixed(1)}%`:"N/A",data.net_margin>15?"text-emerald-400":data.net_margin>0?"text-amber-400":"text-rose-400"],["P/E Ratio",data.pe_ratio?data.pe_ratio.toFixed(1):"N/A",data.pe_ratio>0&&data.pe_ratio<25?"text-emerald-400":data.pe_ratio>40?"text-rose-400":"text-amber-400"],["Data Quality",data.data_quality||"MEDIUM",data.data_quality==="HIGH"?"text-emerald-400":data.data_quality==="LOW"?"text-rose-400":"text-amber-400"],["C1 Verdict",data.check1_pass?"PASS":"FAIL",data.check1_pass?"text-emerald-400":"text-rose-400"],["C2 Verdict",data.check2_pass?"PASS":"FAIL",data.check2_pass?"text-emerald-400":"text-rose-400"],["Conviction",`${data.conviction_score}/10`,ccolor(data.conviction_score)],["Market",data.market==="US"?"NYSE/NASDAQ":"LSE/AIM","text-[#a1a1aa]"]].map(([k,v,c])=>(
+                    <div key={String(k)} className="flex justify-between items-center px-4 py-2.5 text-xs hover:bg-[#161C28]/60 transition-colors">
+                      <span className="text-[#64748B]">{k}</span>
+                      <span className={`font-mono font-semibold ${c}`}>{v}</span>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
-
-            {/* NARRATIVE */}
             {data.narrative&&(
-              <div style={{borderBottom:"1px solid #1a2535"}}>
-                <div style={{padding:"8px 14px",background:"#04080f",borderBottom:"1px solid #1a2535",display:"flex",alignItems:"center",gap:"8px"}}>
-                  <span style={{color:"#374151",fontSize:"8px",letterSpacing:"0.1em"}}>INSTITUTIONAL NARRATIVE</span>
-                  <span style={{background:"#0a1a2e",color:"#60a5fa",fontSize:"8px",padding:"2px 6px",letterSpacing:"0.05em"}}>AI GENERATED</span>
-                  <div style={{flex:1}}></div>
-                  <CopyButton text={data.narrative}/>
+              <div className="w-full overflow-hidden rounded-lg border border-[#1E2530] bg-[#0C0F16]">
+                <div className="flex items-center gap-3 px-4 py-3 bg-[#0A0D14] border-b border-[#1E2530]">
+                  <span className="text-xs font-semibold text-[#a1a1aa] uppercase tracking-wider">Institutional Narrative</span>
+                  <span className="bg-blue-950/80 text-blue-400 border border-blue-800/40 text-[10px] font-bold px-2 py-0.5 rounded">AI Generated</span>
+                  <div className="flex-1"/><CopyBtn text={data.narrative}/>
                 </div>
-                <div style={{padding:"14px",maxHeight:"400px",overflowY:"auto"}}>
-                  <pre style={{color:"#94a3b8",fontSize:"11px",lineHeight:"1.8",whiteSpace:"pre-wrap",fontFamily:"inherit",margin:0}}>{data.narrative}</pre>
-                </div>
+                <div className="p-4 max-h-[400px] overflow-y-auto"><pre className="text-xs text-[#94a3b8] leading-relaxed whitespace-pre-wrap font-mono">{data.narrative}</pre></div>
+                <div className="px-4 py-2 border-t border-[#1E2530] bg-[#0A0D14] text-[10px] text-[#3f3f46]">Data: Yahoo Finance v8 · Not financial advice</div>
               </div>
             )}
-
-            <div style={{padding:"8px 14px",borderTop:"1px solid #1a2535",color:"#1a2535",fontSize:"8px",letterSpacing:"0.06em"}}>
-              DATA: YAHOO FINANCE v8 · {dateStr} · NOT FINANCIAL ADVICE · FOR INSTITUTIONAL USE ONLY
-            </div>
-          </div>
+          </>
         )}
-      </div>
+      </main>
     </div>
   );
 }
