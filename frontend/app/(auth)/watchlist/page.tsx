@@ -1,104 +1,35 @@
 "use client";
-import React from "react";
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 
-function Navigation() {
-  return (
-    <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:50,background:"rgba(6,8,32,0.95)",backdropFilter:"blur(12px)",borderBottom:"1px solid rgba(245,158,11,0.2)",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px",height:"56px"}}>
-      <a href="/dashboard" style={{display:"flex",alignItems:"center",gap:"10px",textDecoration:"none"}}>
-        <div style={{width:"32px",height:"32px",borderRadius:"8px",background:"linear-gradient(135deg,#f59e0b,#d97706)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"900",fontSize:"16px",color:"#060820"}}>a</div>
-        <span style={{fontWeight:"800",fontSize:"16px",color:"#f1f5f9"}}>Alpha<span style={{color:"#f59e0b"}}>Research</span></span>
-      </a>
-      <div style={{display:"flex",gap:"4px"}}>
-        {[["dashboard","Dashboard"],["analyzer","Analyzer"],["watchlist","Watchlist"],["portfolio","Portfolio"],["journal","Journal"]].map(([href,label])=>(
-          <a key={href} href={"/"+href} style={{display:"flex",alignItems:"center",padding:"6px 14px",borderRadius:"8px",textDecoration:"none",fontSize:"13px",color:"#94a3b8"}}>{label}</a>
-        ))}
-      </div>
-      <div style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"12px",color:"#10b981"}}>
-        <div style={{width:"6px",height:"6px",borderRadius:"50%",background:"#10b981"}}></div>
-        <span>LIVE</span>
-      </div>
-    </nav>
-  );
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = React.useState(false);
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    }).catch(() => {
-      const el = document.createElement("textarea");
-      el.value = text;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    });
-  };
-  return (
-    <button onClick={handleCopy}
-      title="Copy to clipboard"
-      style={{
-        padding:"5px 12px", borderRadius:"7px", fontSize:"11px", fontWeight:"600",
-        cursor:"pointer", display:"flex", alignItems:"center", gap:"5px",
-        border:"1px solid rgba(148,163,184,0.25)",
-        background: copied ? "rgba(16,185,129,0.15)" : "rgba(148,163,184,0.08)",
-        color: copied ? "#10b981" : "#94a3b8",
-        transition:"all 0.2s"
-      }}>
-      {copied ? (
-        <><span>✓</span><span>Copied!</span></>
-      ) : (
-        <><span style={{fontSize:"13px"}}>⧉</span><span>Copy</span></>
-      )}
-    </button>
-  );
-}
-
-interface WatchItem {
-  id: string;
-  ticker: string;
-  market: string;
-  sector: string;
-  theme: string;
-  notes: string;
-  added: string;
-  score: number;
-  c1_pass: boolean;
-  c2_pass: boolean;
-  stage: string;
-  rsi: number;
-  entry_zone: string;
-  graduated: boolean;
-}
-
-const gold="#f59e0b", green="#10b981", red="#ef4444", steel="#94a3b8", blue="#60a5fa", purple="#a78bfa";
 const BACKEND = "https://alpha-research-center-backend.onrender.com";
 const SECTORS = ["Technology","Healthcare","Financials","Energy","Industrials","Consumer","Real Estate","Materials","Utilities","Communication","AI Infrastructure"];
 const THEMES = ["AI Infrastructure","Defence","Energy Transition","Healthcare AI","Crypto","EV","Semiconductors","Cloud","Biotech","Value","Growth","Dividend"];
 
-function daysSince(dateStr: string): number {
-  const d = new Date(dateStr);
-  const now = new Date();
-  return Math.floor((now.getTime() - d.getTime()) / (1000*60*60*24));
+interface WatchItem {
+  id: string; ticker: string; market: string; sector: string;
+  theme: string; notes: string; added: string; score: number;
+  c1_pass: boolean; c2_pass: boolean; stage: string;
+  rsi: number; entry_zone: string; graduated: boolean;
 }
 
-function scoreColor(s: number) {
-  if (s >= 8) return green;
-  if (s >= 6) return gold;
-  if (s >= 4) return "#fb923c";
-  return red;
+function daysSince(d: string) {
+  return Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
 }
 
-function scoreLabel(s: number) {
-  if (s >= 8) return "Near Qualifying";
-  if (s >= 6) return "Watch Closely";
-  if (s >= 4) return "Early Stage";
-  return "Not Ready";
+function convColor(s: number) {
+  return s >= 9 ? "#22c55e" : s >= 7 ? "#f59e0b" : s >= 5 ? "#60a5fa" : s > 0 ? "#ef4444" : "#253345";
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = React.useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); });
+  };
+  return (
+    <button onClick={copy} style={{background:copied?"rgba(34,197,94,0.15)":"transparent",border:`1px solid ${copied?"#22c55e44":"#253345"}`,color:copied?"#22c55e":"#4a5568",fontSize:"9px",padding:"3px 8px",cursor:"pointer",letterSpacing:"0.05em"}}>
+      {copied ? "✓ COPIED" : "⧉ COPY"}
+    </button>
+  );
 }
 
 export default function Watchlist() {
@@ -110,429 +41,279 @@ export default function Watchlist() {
   const [notes, setNotes] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("ALL");
-  const [message, setMessage] = useState<{text:string,ok:boolean}|null>(null);
+  const [sortBy, setSortBy] = useState<"score"|"added"|"ticker">("score");
+  const [msg, setMsg] = useState<{text:string;ok:boolean}|null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<string|null>(null);
-  const [autoFilling, setAutoFilling] = useState(false);
   const [scoring, setScoring] = useState(false);
-  const [sortBy, setSortBy] = useState<"score"|"added"|"ticker">("score");
+  const [autoFilling, setAutoFilling] = useState(false);
 
   useEffect(() => {
-    try { const s=localStorage.getItem("alpha_watchlist_v3"); if(s) setItems(JSON.parse(s)); } catch(e){}
-  },[]);
+    try { const s = localStorage.getItem("alpha_watchlist_v3"); if (s) setItems(JSON.parse(s)); } catch(e) {}
+  }, []);
 
   const persist = (list: WatchItem[]) => {
     setItems(list);
-    try { localStorage.setItem("alpha_watchlist_v3", JSON.stringify(list)); } catch(e){}
+    try { localStorage.setItem("alpha_watchlist_v3", JSON.stringify(list)); } catch(e) {}
   };
 
-  // AI Auto-fill sector/theme/notes when ticker is entered
   const autoFill = async (t: string) => {
-    if (!t || t.length < 1) return;
+    if (!t) return;
     setAutoFilling(true);
     try {
-      const res = await fetch(`${BACKEND}/analyze/ticker-info`, {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ticker: t.toUpperCase(), market})
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.sector) setSector(data.sector);
-        if (data.theme) setTheme(data.theme);
-        if (data.notes) setNotes(data.notes);
-      }
+      const res = await fetch(`${BACKEND}/analyze/ticker-info`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ticker:t.toUpperCase(),market}) });
+      if (res.ok) { const d = await res.json(); if(d.sector) setSector(d.sector); if(d.theme) setTheme(d.theme); if(d.notes) setNotes(d.notes); }
     } catch(e) {}
     setAutoFilling(false);
   };
 
   const addItem = () => {
-    if (!ticker.trim()) { setMessage({text:"Please enter a ticker symbol",ok:false}); return; }
+    if (!ticker.trim()) { setMsg({text:"ENTER TICKER SYMBOL",ok:false}); return; }
     const t = ticker.trim().toUpperCase();
-    if (items.find(i => i.ticker===t && i.market===market)) {
-      setMessage({text:`${t} already in watchlist`,ok:false}); return;
-    }
-    const newItem: WatchItem = {
-      id: Date.now().toString(), ticker:t, market, sector, theme, notes,
-      added: new Date().toISOString().split("T")[0],
-      score:0, c1_pass:false, c2_pass:false, stage:"", rsi:0, entry_zone:"", graduated:false
-    };
-    persist([...items, newItem]);
-    setMessage({text:`✅ ${t} added to watchlist!`,ok:true});
+    if (items.find(i => i.ticker === t && i.market === market)) { setMsg({text:`${t} ALREADY IN WATCHLIST`,ok:false}); return; }
+    const item: WatchItem = { id:Date.now().toString(), ticker:t, market, sector, theme, notes, added:new Date().toISOString().split("T")[0], score:0, c1_pass:false, c2_pass:false, stage:"", rsi:0, entry_zone:"", graduated:false };
+    persist([...items, item]);
+    setMsg({text:`${t} ADDED TO WATCHLIST`,ok:true});
     setTicker(""); setSector(""); setTheme(""); setNotes("");
   };
 
-  // Score all watchlist stocks against 3-Check criteria
-  const scoreWatchlist = async () => {
-    if (items.length===0) return;
+  const remove = (id: string) => persist(items.filter(i => i.id !== id));
+
+  const scoreAll = async () => {
+    if (!items.length) return;
     setScoring(true);
-    setMessage({text:"⚡ Scoring stocks against 3-Check criteria...",ok:true});
+    setMsg({text:"SCORING AGAINST 3-CHECK CRITERIA...",ok:true});
     try {
-      const res = await fetch(`${BACKEND}/scan/`, {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({market:"US", tickers: items.map(i=>i.ticker), notify_telegram:false})
-      });
+      const res = await fetch(`${BACKEND}/scan/`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({market:"US", tickers:items.map(i=>i.ticker), notify_telegram:false}) });
       if (res.ok) {
         const data = await res.json();
-        const qualMap: Record<string,any> = {};
-        (data.qualifying_stocks||[]).forEach((s:any) => { qualMap[s.ticker] = s; });
-
+        const map: Record<string,any> = {};
+        (data.qualifying_stocks||[]).forEach((s:any) => { map[s.ticker] = s; });
         const updated = items.map(item => {
-          const q = qualMap[item.ticker];
-          if (q) {
-            return {...item, score:q.conviction_score, c1_pass:q.check1_pass, c2_pass:q.check2_pass, stage:q.technical_stage, rsi:q.rsi14||0, entry_zone:q.entry_zone||""};
-          }
-          // Not qualifying - give partial score
-          return {...item, score: item.score||1, c1_pass:false, c2_pass:false};
+          const q = map[item.ticker];
+          return q ? {...item, score:q.conviction_score, c1_pass:q.check1_pass, c2_pass:q.check2_pass, stage:q.technical_stage, rsi:q.rsi14||0, entry_zone:q.entry_zone||""} : {...item, score:item.score||0};
         });
         persist(updated);
-        const qualified = updated.filter(i=>i.c1_pass&&i.c2_pass).length;
-        setMessage({text:`✅ Scoring complete! ${qualified} stocks qualifying · ${items.length-qualified} not yet ready`,ok:true});
+        const qual = updated.filter(i=>i.c1_pass&&i.c2_pass).length;
+        setMsg({text:`SCORING COMPLETE — ${qual} QUALIFYING / ${items.length} TOTAL`,ok:true});
       }
-    } catch(e) {
-      setMessage({text:"Scoring failed — backend may be waking up, try again",ok:false});
-    }
+    } catch(e) { setMsg({text:"SCORING FAILED — BACKEND MAY BE WAKING UP",ok:false}); }
     setScoring(false);
   };
 
-  // Graduate stock to portfolio
-  const graduateToPortfolio = (item: WatchItem) => {
+  const analyzeAll = async () => {
+    if (!items.length) { setMsg({text:"ADD STOCKS FIRST",ok:false}); return; }
+    setAnalyzing(true); setAnalysis(null); setMsg(null);
     try {
-      const existing = JSON.parse(localStorage.getItem("alpha_positions")||"[]");
-      if (existing.find((p:any) => p.ticker===item.ticker)) {
-        setMessage({text:`${item.ticker} already in portfolio`,ok:false}); return;
-      }
-      const pos = {
-        id: Date.now().toString(),
-        ticker: item.ticker, market: item.market,
-        entry_date: new Date().toISOString().split("T")[0],
-        entry_price: 0, shares: 0,
-        stop_level: 0, target_price: 0,
-        notes: `Graduated from watchlist. ${item.notes||""} ${item.stage||""}`
-      };
-      localStorage.setItem("alpha_positions", JSON.stringify([...existing, pos]));
-      const updated = items.map(i => i.id===item.id ? {...i, graduated:true} : i);
-      persist(updated);
-      setMessage({text:`✅ ${item.ticker} moved to Portfolio! Update entry price there.`,ok:true});
-    } catch(e) {
-      setMessage({text:"Failed to graduate to portfolio",ok:false});
-    }
-  };
-
-  const remove = (id:string) => { persist(items.filter(i=>i.id!==id)); };
-
-  const analyzeWatchlist = async () => {
-    if (items.length===0) { setMessage({text:"Add stocks first",ok:false}); return; }
-    setAnalyzing(true); setAnalysis(null); setMessage(null);
-    try {
-      const res = await fetch(`${BACKEND}/analyze/watchlist`, {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({stocks: items.map(i=>({ticker:i.ticker, market:i.market, sector:i.sector||"", theme:i.theme||"", notes:i.notes||"", score:i.score, days_watching:daysSince(i.added)}))})
-      });
+      const res = await fetch(`${BACKEND}/analyze/watchlist`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({stocks:items.map(i=>({ticker:i.ticker,market:i.market,sector:i.sector||"",theme:i.theme||"",notes:i.notes||"",score:i.score,days_watching:daysSince(i.added)}))}) });
       if (!res.ok) throw new Error("Backend error");
-      const data = await res.json();
-      setAnalysis(data.analysis||"Analysis unavailable");
+      const d = await res.json();
+      setAnalysis(d.analysis || "Analysis unavailable");
     } catch(e) {
-      setAnalysis(`Analysis unavailable — backend may be waking up. Try again in 60 seconds.\n\nWatchlist: ${items.map(i=>i.ticker).join(", ")}`);
+      setAnalysis("Analysis unavailable — backend may be waking up. Try again in 60 seconds.");
     }
     setAnalyzing(false);
   };
 
+  const graduateToPortfolio = (item: WatchItem) => {
+    try {
+      const existing = JSON.parse(localStorage.getItem("alpha_positions")||"[]");
+      if (existing.find((p:any) => p.ticker === item.ticker)) { setMsg({text:`${item.ticker} ALREADY IN PORTFOLIO`,ok:false}); return; }
+      const pos = { id:Date.now().toString(), ticker:item.ticker, market:item.market, entry_date:new Date().toISOString().split("T")[0], entry_price:0, shares:0, stop_level:0, target_price:0, notes:`From watchlist. ${item.notes||""} ${item.stage||""}` };
+      localStorage.setItem("alpha_positions", JSON.stringify([...existing, pos]));
+      persist(items.map(i => i.id===item.id ? {...i, graduated:true} : i));
+      setMsg({text:`${item.ticker} MOVED TO PORTFOLIO — UPDATE ENTRY PRICE`,ok:true});
+    } catch(e) { setMsg({text:"FAILED TO GRADUATE",ok:false}); }
+  };
+
   const sorted = [...items]
-    .filter(i => {
-      const ms = !search || i.ticker.includes(search.toUpperCase()) || (i.sector||"").toLowerCase().includes(search.toLowerCase());
-      const mf = filter==="ALL" || i.market===filter;
-      return ms && mf;
-    })
+    .filter(i => (!search || i.ticker.includes(search.toUpperCase()) || (i.sector||"").toLowerCase().includes(search.toLowerCase())) && (filter==="ALL" || i.market===filter))
     .sort((a,b) => sortBy==="score" ? b.score-a.score : sortBy==="added" ? new Date(b.added).getTime()-new Date(a.added).getTime() : a.ticker.localeCompare(b.ticker));
 
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",timeZone:"America/New_York"}) + " EST";
+  const dateStr = now.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}).toUpperCase();
   const qualified = items.filter(i=>i.c1_pass&&i.c2_pass).length;
   const avgScore = items.length ? (items.reduce((s,i)=>s+i.score,0)/items.length).toFixed(1) : "—";
 
   return (
-    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#060820 0%,#0d1145 50%,#060820 100%)"}}>
-      <Navigation/>
-      <div style={{maxWidth:"1400px",margin:"0 auto",padding:"72px 20px 40px"}}>
+    <div style={{minHeight:"100vh",background:"#060d18",fontFamily:"'SF Mono','Fira Code','Consolas',monospace",color:"#e2e8f0"}}>
 
-        {/* Header */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"20px",flexWrap:"wrap",gap:"10px"}}>
-          <div>
-            <h1 style={{fontSize:"22px",fontWeight:"900",color:"#f1f5f9",marginBottom:"2px"}}>
-              <span style={{color:gold}}>Watchlist</span> Manager
-            </h1>
-            <p style={{color:"#475569",fontSize:"12px"}}>{items.length} stocks monitored · US and UK markets · Rank by 3-Check score</p>
-          </div>
-          <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>
-            {items.length>0&&(
-              <>
-                <button onClick={scoreWatchlist} disabled={scoring}
-                  style={{padding:"9px 16px",borderRadius:"10px",fontWeight:"700",fontSize:"12px",cursor:scoring?"wait":"pointer",border:"1px solid rgba(245,158,11,0.4)",background:"rgba(245,158,11,0.1)",color:scoring?"#64748b":gold}}>
-                  {scoring?"⚡ Scoring...":"⚡ Score vs 3-Checks"}
-                </button>
-                <button onClick={analyzeWatchlist} disabled={analyzing}
-                  style={{padding:"9px 16px",borderRadius:"10px",fontWeight:"700",fontSize:"12px",cursor:analyzing?"wait":"pointer",border:"1px solid rgba(96,165,250,0.4)",background:"rgba(96,165,250,0.15)",color:analyzing?"#64748b":blue}}>
-                  {analyzing?"🧠 Analyzing...":"🧠 Lynch+Wyckoff Analysis"}
-                </button>
-              </>
-            )}
-          </div>
+      {/* TOP BAR */}
+      <div style={{position:"fixed",top:0,left:0,right:0,zIndex:50,background:"#04080f",borderBottom:"1px solid #1a2535",display:"flex",alignItems:"center",justifyContent:"space-between",height:"44px"}}>
+        <div style={{display:"flex",alignItems:"center",height:"100%"}}>
+          <div style={{background:"#f59e0b",color:"#000",fontSize:"11px",fontWeight:"700",padding:"0 14px",height:"100%",display:"flex",alignItems:"center",letterSpacing:"0.08em"}}>ALPHA<span style={{opacity:0.6}}>RESEARCH</span></div>
+          {[["dashboard","COMMAND CTR"],["analyzer","ANALYZER"],["watchlist","WATCHLIST"],["portfolio","PORTFOLIO"],["journal","JOURNAL"]].map(([href,label])=>(
+            <a key={href} href={"/"+href} style={{display:"flex",alignItems:"center",height:"100%",padding:"0 14px",textDecoration:"none",fontSize:"10px",letterSpacing:"0.06em",borderBottom:href==="watchlist"?"2px solid #f59e0b":"2px solid transparent",color:href==="watchlist"?"#f59e0b":"#4a5568",fontWeight:href==="watchlist"?"700":"400"}}>{label}</a>
+          ))}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:"16px",paddingRight:"16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"4px"}}><div style={{width:"5px",height:"5px",borderRadius:"50%",background:"#22c55e"}}></div><span style={{color:"#22c55e",fontSize:"9px",letterSpacing:"0.08em"}}>LIVE</span></div>
+          <span style={{color:"#253345",fontSize:"9px"}}>{dateStr} {timeStr}</span>
+        </div>
+      </div>
+
+      <div style={{paddingTop:"44px"}}>
+
+        {/* STAT STRIP */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",borderBottom:"1px solid #1a2535"}}>
+          {[
+            {label:"MONITORED",value:String(items.length),sub:"total stocks",color:"#e2e8f0"},
+            {label:"QUALIFYING",value:String(qualified),sub:"pass 3-checks",color:"#22c55e"},
+            {label:"AVG SCORE",value:avgScore+"/10",sub:"conviction",color:"#f59e0b"},
+            {label:"US STOCKS",value:String(items.filter(i=>i.market==="US").length),sub:"NYSE/NASDAQ",color:"#60a5fa"},
+            {label:"UK STOCKS",value:String(items.filter(i=>i.market==="UK").length),sub:"LSE/AIM",color:"#a78bfa"},
+          ].map((s,i)=>(
+            <div key={s.label} style={{padding:"10px 14px",borderRight:i<4?"1px solid #1a2535":"none"}}>
+              <div style={{color:"#374151",fontSize:"9px",letterSpacing:"0.08em",marginBottom:"3px"}}>{s.label}</div>
+              <div style={{color:s.color,fontSize:"20px",fontWeight:"700",lineHeight:"1"}}>{s.value}</div>
+              <div style={{color:"#374151",fontSize:"9px",marginTop:"2px"}}>{s.sub}</div>
+            </div>
+          ))}
         </div>
 
-        {/* Stats */}
-        {items.length>0&&(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"8px",marginBottom:"14px"}}>
-            {[
-              {label:"Total Stocks", value:String(items.length), color:green},
-              {label:"Qualifying Now", value:String(qualified), color:qualified>0?green:steel},
-              {label:"Avg Score", value:avgScore+"/10", color:gold},
-              {label:"US Stocks", value:String(items.filter(i=>i.market==="US").length), color:blue},
-              {label:"UK Stocks", value:String(items.filter(i=>i.market==="UK").length), color:purple},
-            ].map(s=>(
-              <div key={s.label} style={{background:"linear-gradient(145deg,#0f172a,#1e293b)",border:"1px solid #1e293b",borderRadius:"10px",padding:"10px 14px"}}>
-                <div style={{fontSize:"16px",fontWeight:"900",color:s.color,fontFamily:"monospace"}}>{s.value}</div>
-                <div style={{fontSize:"9px",color:"#475569",textTransform:"uppercase",letterSpacing:"0.05em",marginTop:"1px"}}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Add form */}
-        <div style={{background:"linear-gradient(145deg,#0f172a,#1e293b)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:"14px",padding:"16px 20px",marginBottom:"14px"}}>
-          <div style={{fontSize:"11px",fontWeight:"700",color:gold,marginBottom:"12px"}}>+ ADD TO WATCHLIST {autoFilling&&<span style={{color:steel,fontWeight:"400"}}>· AI filling details...</span>}</div>
-          <div style={{display:"grid",gridTemplateColumns:"130px 90px 1fr 1fr 1fr auto",gap:"10px",alignItems:"end"}}>
+        {/* ADD FORM */}
+        <div style={{background:"#04080f",borderBottom:"1px solid #1a2535",padding:"10px 14px"}}>
+          <div style={{color:"#374151",fontSize:"8px",letterSpacing:"0.1em",marginBottom:"8px"}}>+ ADD TO WATCHLIST {autoFilling&&<span style={{color:"#f59e0b"}}>· AI FILLING...</span>}</div>
+          <div style={{display:"grid",gridTemplateColumns:"120px 90px 1fr 1fr 1fr auto",gap:"8px",alignItems:"end"}}>
             <div>
-              <label style={{fontSize:"9px",fontWeight:"700",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:"4px"}}>Ticker * {autoFilling&&"⚡"}</label>
-              <input value={ticker}
-                onChange={e=>{setTicker(e.target.value.toUpperCase());}}
-                onBlur={e=>autoFill(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&addItem()}
-                placeholder="NVDA"
-                style={{padding:"9px 12px",borderRadius:"8px",border:`1px solid ${autoFilling?"rgba(245,158,11,0.5)":"#1e293b"}`,background:"#060820",color:"#f1f5f9",fontSize:"13px",fontWeight:"700",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+              <div style={{color:"#253345",fontSize:"8px",letterSpacing:"0.08em",marginBottom:"3px"}}>TICKER *</div>
+              <input value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} onBlur={e=>autoFill(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addItem()} placeholder="NVDA"
+                style={{width:"100%",boxSizing:"border-box",background:"#060d18",border:`1px solid ${autoFilling?"#f59e0b44":"#1a2535"}`,color:"#f59e0b",padding:"6px 8px",fontSize:"12px",fontWeight:"700",fontFamily:"inherit",outline:"none"}}/>
             </div>
             <div>
-              <label style={{fontSize:"9px",fontWeight:"700",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:"4px"}}>Market</label>
-              <select value={market} onChange={e=>setMarket(e.target.value)}
-                style={{padding:"9px 8px",borderRadius:"8px",border:"1px solid #1e293b",background:"#060820",color:"#f1f5f9",fontSize:"12px",width:"100%"}}>
-                <option value="US">🇺🇸 US</option>
-                <option value="UK">🇬🇧 UK</option>
+              <div style={{color:"#253345",fontSize:"8px",letterSpacing:"0.08em",marginBottom:"3px"}}>MARKET</div>
+              <select value={market} onChange={e=>setMarket(e.target.value)} style={{width:"100%",background:"#060d18",border:"1px solid #1a2535",color:"#e2e8f0",padding:"6px 8px",fontSize:"10px",fontFamily:"inherit",outline:"none"}}>
+                <option value="US">US NYSE/NASDAQ</option>
+                <option value="UK">UK LSE/AIM</option>
               </select>
             </div>
             <div>
-              <label style={{fontSize:"9px",fontWeight:"700",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:"4px"}}>Sector {autoFilling&&<span style={{color:gold}}>✨ AI</span>}</label>
-              <select value={sector} onChange={e=>setSector(e.target.value)}
-                style={{padding:"9px 8px",borderRadius:"8px",border:`1px solid ${autoFilling?"rgba(245,158,11,0.4)":"#1e293b"}`,background:"#060820",color:"#f1f5f9",fontSize:"12px",width:"100%"}}>
-                <option value="">Select sector...</option>
+              <div style={{color:"#253345",fontSize:"8px",letterSpacing:"0.08em",marginBottom:"3px"}}>SECTOR {autoFilling&&<span style={{color:"#f59e0b"}}>✨</span>}</div>
+              <select value={sector} onChange={e=>setSector(e.target.value)} style={{width:"100%",background:"#060d18",border:`1px solid ${autoFilling?"#f59e0b44":"#1a2535"}`,color:"#e2e8f0",padding:"6px 8px",fontSize:"10px",fontFamily:"inherit",outline:"none"}}>
+                <option value="">Select...</option>
                 {SECTORS.map(s=><option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
-              <label style={{fontSize:"9px",fontWeight:"700",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:"4px"}}>Theme {autoFilling&&<span style={{color:gold}}>✨ AI</span>}</label>
-              <select value={theme} onChange={e=>setTheme(e.target.value)}
-                style={{padding:"9px 8px",borderRadius:"8px",border:`1px solid ${autoFilling?"rgba(245,158,11,0.4)":"#1e293b"}`,background:"#060820",color:"#f1f5f9",fontSize:"12px",width:"100%"}}>
-                <option value="">Select theme...</option>
+              <div style={{color:"#253345",fontSize:"8px",letterSpacing:"0.08em",marginBottom:"3px"}}>THEME {autoFilling&&<span style={{color:"#f59e0b"}}>✨</span>}</div>
+              <select value={theme} onChange={e=>setTheme(e.target.value)} style={{width:"100%",background:"#060d18",border:`1px solid ${autoFilling?"#f59e0b44":"#1a2535"}`,color:"#e2e8f0",padding:"6px 8px",fontSize:"10px",fontFamily:"inherit",outline:"none"}}>
+                <option value="">Select...</option>
                 {THEMES.map(t=><option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label style={{fontSize:"9px",fontWeight:"700",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:"4px"}}>Notes {autoFilling&&<span style={{color:gold}}>✨ AI</span>}</label>
+              <div style={{color:"#253345",fontSize:"8px",letterSpacing:"0.08em",marginBottom:"3px"}}>NOTES {autoFilling&&<span style={{color:"#f59e0b"}}>✨</span>}</div>
               <input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Why watching..."
-                style={{padding:"9px 12px",borderRadius:"8px",border:`1px solid ${autoFilling?"rgba(245,158,11,0.4)":"#1e293b"}`,background:"#060820",color:"#f1f5f9",fontSize:"12px",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                style={{width:"100%",boxSizing:"border-box",background:"#060d18",border:`1px solid ${autoFilling?"#f59e0b44":"#1a2535"}`,color:"#94a3b8",padding:"6px 8px",fontSize:"10px",fontFamily:"inherit",outline:"none"}}/>
             </div>
-            <button onClick={addItem}
-              style={{padding:"9px 20px",borderRadius:"8px",fontWeight:"700",fontSize:"13px",cursor:"pointer",border:"none",background:`linear-gradient(135deg,${gold},#d97706)`,color:"#060820",whiteSpace:"nowrap"}}>
-              + Add
-            </button>
+            <button onClick={addItem} style={{background:"#f59e0b",border:"none",color:"#000",fontSize:"10px",fontWeight:"700",padding:"7px 16px",cursor:"pointer",letterSpacing:"0.06em",whiteSpace:"nowrap"}}>+ ADD</button>
           </div>
-          <div style={{marginTop:"8px",fontSize:"10px",color:"#334155"}}>
-            💡 Type ticker and click away — AI will auto-fill sector, theme and notes
-          </div>
+          <div style={{color:"#253345",fontSize:"8px",marginTop:"5px"}}>TYPE TICKER AND TAB AWAY — AI AUTO-FILLS SECTOR, THEME AND NOTES</div>
         </div>
 
-        {message&&(
-          <div style={{padding:"10px 14px",borderRadius:"8px",marginBottom:"12px",fontSize:"12px",background:message.ok?"rgba(16,185,129,0.1)":"rgba(239,68,68,0.1)",color:message.ok?green:red,border:`1px solid ${message.ok?"rgba(16,185,129,0.3)":"rgba(239,68,68,0.3)"}`}}>
-            {message.text}
+        {/* CONTROL BAR */}
+        <div style={{background:"#060d18",borderBottom:"1px solid #1a2535",padding:"7px 14px",display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="SEARCH TICKER OR SECTOR..."
+            style={{background:"#04080f",border:"1px solid #1a2535",color:"#94a3b8",padding:"4px 10px",fontSize:"9px",fontFamily:"inherit",outline:"none",width:"180px",letterSpacing:"0.04em"}}/>
+          <div style={{display:"flex",gap:"1px"}}>
+            {[["ALL","ALL"],["US","US"],["UK","UK"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setFilter(v)} style={{padding:"4px 10px",border:`1px solid ${filter===v?"#22c55e44":"#1a2535"}`,background:filter===v?"#162030":"transparent",color:filter===v?"#22c55e":"#374151",fontSize:"9px",letterSpacing:"0.06em",cursor:"pointer"}}>{l}</button>
+            ))}
           </div>
-        )}
-
-        {/* Analysis */}
-        {analyzing&&(
-          <div style={{background:"linear-gradient(145deg,#0f172a,#1e293b)",border:"1px solid rgba(96,165,250,0.3)",borderRadius:"14px",padding:"30px",marginBottom:"14px",textAlign:"center"}}>
-            <div style={{fontSize:"40px",marginBottom:"12px"}}>🧠</div>
-            <div style={{color:blue,fontSize:"16px",fontWeight:"700",marginBottom:"6px"}}>Running Lynch + Wyckoff Analysis...</div>
-            <div style={{color:"#475569",fontSize:"12px"}}>Fundamental engine · Technical phase detection · BUY / WATCH / AVOID verdicts</div>
+          <div style={{display:"flex",gap:"1px"}}>
+            {[["score","SCORE"],["added","RECENT"],["ticker","A-Z"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setSortBy(v as any)} style={{padding:"4px 10px",border:`1px solid ${sortBy===v?"#f59e0b44":"#1a2535"}`,background:sortBy===v?"#1a0f00":"transparent",color:sortBy===v?"#f59e0b":"#374151",fontSize:"9px",letterSpacing:"0.06em",cursor:"pointer"}}>{l}</button>
+            ))}
           </div>
-        )}
+          <div style={{flex:1}}></div>
+          {items.length>0&&<><button onClick={scoreAll} disabled={scoring} style={{background:"transparent",border:"1px solid #f59e0b44",color:scoring?"#374151":"#f59e0b",fontSize:"9px",padding:"4px 12px",cursor:"pointer",letterSpacing:"0.06em"}}>{scoring?"SCORING...":"⚡ SCORE VS 3-CHECKS"}</button>
+          <button onClick={analyzeAll} disabled={analyzing} style={{background:"transparent",border:"1px solid #60a5fa44",color:analyzing?"#374151":"#60a5fa",fontSize:"9px",padding:"4px 12px",cursor:"pointer",letterSpacing:"0.06em"}}>{analyzing?"ANALYZING...":"🧠 LYNCH+WYCKOFF"}</button></>}
+        </div>
 
+        {/* MSG */}
+        {msg&&<div style={{padding:"6px 14px",background:msg.ok?"#052e16":"#1a0505",borderBottom:"1px solid #1a2535",color:msg.ok?"#22c55e":"#ef4444",fontSize:"9px",letterSpacing:"0.06em"}}>{msg.ok?"✓":"⚠"} {msg.text}</div>}
+
+        {/* ANALYSIS */}
+        {analyzing&&<div style={{padding:"40px 0",textAlign:"center"}}><div style={{color:"#60a5fa",fontSize:"10px",letterSpacing:"0.1em",marginBottom:"6px"}}>RUNNING LYNCH + WYCKOFF ANALYSIS</div><div style={{color:"#253345",fontSize:"9px",letterSpacing:"0.08em"}}>FUNDAMENTAL ENGINE · TECHNICAL PHASE DETECTION · BUY / WATCH / AVOID VERDICTS</div></div>}
         {analysis&&!analyzing&&(
-          <div style={{background:"linear-gradient(145deg,#0f172a,#1e293b)",border:"1px solid rgba(96,165,250,0.3)",borderRadius:"14px",padding:"20px",marginBottom:"14px"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"14px"}}>
-              <div style={{display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}}>
-                <span style={{fontSize:"16px"}}>🧠</span>
-                <span style={{color:"#f1f5f9",fontWeight:"700",fontSize:"13px"}}>Watchlist Analysis</span>
-                <span style={{padding:"2px 8px",borderRadius:"10px",fontSize:"9px",fontWeight:"700",background:"rgba(16,185,129,0.15)",color:green,border:"1px solid rgba(16,185,129,0.3)"}}>LYNCH + WYCKOFF</span>
-                <span style={{padding:"2px 8px",borderRadius:"10px",fontSize:"9px",fontWeight:"700",background:"rgba(96,165,250,0.15)",color:blue,border:"1px solid rgba(96,165,250,0.3)"}}>INSTITUTIONAL</span>
-              </div>
-              <button onClick={()=>setAnalysis(null)}
-                style={{padding:"4px 10px",borderRadius:"6px",fontSize:"11px",cursor:"pointer",border:"1px solid #1e293b",background:"transparent",color:"#475569"}}>✕</button>
-              <CopyButton text={analysis||""}/>
+          <div style={{borderBottom:"1px solid #1a2535"}}>
+            <div style={{padding:"8px 14px",background:"#04080f",borderBottom:"1px solid #1a2535",display:"flex",alignItems:"center",gap:"8px"}}>
+              <span style={{color:"#e2e8f0",fontSize:"10px",fontWeight:"700",letterSpacing:"0.06em"}}>LYNCH + WYCKOFF ANALYSIS</span>
+              <span style={{background:"#052e16",color:"#22c55e",fontSize:"8px",padding:"2px 6px",letterSpacing:"0.05em"}}>INSTITUTIONAL</span>
+              <div style={{flex:1}}></div>
+              <CopyButton text={analysis}/>
+              <button onClick={()=>setAnalysis(null)} style={{background:"transparent",border:"1px solid #1a2535",color:"#374151",fontSize:"9px",padding:"3px 8px",cursor:"pointer",letterSpacing:"0.05em"}}>✕ CLOSE</button>
             </div>
-            <pre style={{color:"#e2e8f0",fontSize:"12px",lineHeight:"1.8",whiteSpace:"pre-wrap",fontFamily:"'Courier New',monospace",margin:0}}>{analysis}</pre>
-            <div style={{marginTop:"10px",fontSize:"10px",color:"#334155"}}>Lynch Fundamental Framework + Wyckoff Phase Analysis · Not financial advice</div>
+            <div style={{padding:"16px 14px",maxHeight:"500px",overflowY:"auto"}}>
+              <pre style={{color:"#94a3b8",fontSize:"11px",lineHeight:"1.8",whiteSpace:"pre-wrap",fontFamily:"inherit",margin:0}}>{analysis}</pre>
+            </div>
+            <div style={{padding:"6px 14px",borderTop:"1px solid #1a2535",color:"#253345",fontSize:"8px",letterSpacing:"0.05em"}}>LYNCH FUNDAMENTAL FRAMEWORK + WYCKOFF PHASE ANALYSIS · NOT FINANCIAL ADVICE</div>
           </div>
         )}
 
-        {/* Filter bar */}
-        <div style={{background:"linear-gradient(145deg,#0f172a,#1e293b)",border:"1px solid #1e293b",borderRadius:"12px",padding:"10px 14px",marginBottom:"12px",display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search ticker or sector..."
-            style={{padding:"6px 12px",borderRadius:"7px",border:"1px solid #1e293b",background:"#060820",color:"#f1f5f9",fontSize:"11px",outline:"none",minWidth:"180px"}}/>
-          <div style={{display:"flex",gap:"4px"}}>
-            {[["ALL","All"],["US","🇺🇸 US"],["UK","🇬🇧 UK"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setFilter(v)}
-                style={{padding:"4px 10px",borderRadius:"6px",fontSize:"10px",fontWeight:"600",cursor:"pointer",border:"1px solid",
-                  background:filter===v?"rgba(245,158,11,0.15)":"transparent",
-                  color:filter===v?gold:"#64748b",
-                  borderColor:filter===v?"rgba(245,158,11,0.35)":"#1e293b"}}>{l}</button>
-            ))}
+        {/* TABLE */}
+        <div>
+          <div style={{padding:"6px 14px",background:"#04080f",borderBottom:"1px solid #1a2535",display:"flex",alignItems:"center",gap:"8px"}}>
+            <span style={{color:"#e2e8f0",fontSize:"10px",fontWeight:"700",letterSpacing:"0.06em"}}>MONITORED STOCKS</span>
+            <span style={{background:"#0a1a2a",color:"#374151",fontSize:"8px",padding:"2px 8px",letterSpacing:"0.05em"}}>{sorted.length} OF {items.length}</span>
+            {qualified>0&&<span style={{background:"#052e16",color:"#22c55e",fontSize:"8px",padding:"2px 8px",letterSpacing:"0.05em"}}>🎯 {qualified} QUALIFYING</span>}
           </div>
-          <div style={{display:"flex",gap:"4px"}}>
-            <span style={{fontSize:"10px",color:"#475569",alignSelf:"center"}}>Sort:</span>
-            {[["score","Score"],["added","Recent"],["ticker","A-Z"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setSortBy(v as any)}
-                style={{padding:"4px 10px",borderRadius:"6px",fontSize:"10px",fontWeight:"600",cursor:"pointer",border:"1px solid",
-                  background:sortBy===v?"rgba(96,165,250,0.15)":"transparent",
-                  color:sortBy===v?blue:"#64748b",
-                  borderColor:sortBy===v?"rgba(96,165,250,0.35)":"#1e293b"}}>{l}</button>
-            ))}
-          </div>
-          <span style={{fontSize:"10px",color:"#475569",marginLeft:"auto"}}>
-            {sorted.length} of {items.length} stocks
-          </span>
-        </div>
-
-        {/* Table */}
-        <div style={{background:"linear-gradient(145deg,#0f172a,#1e293b)",border:"1px solid #1e293b",borderRadius:"14px",overflow:"hidden"}}>
-          <div style={{padding:"10px 16px",borderBottom:"1px solid #1e293b",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <span style={{fontWeight:"700",color:"#f1f5f9",fontSize:"12px"}}>Monitored Stocks</span>
-            {qualified>0&&(
-              <span style={{padding:"2px 10px",borderRadius:"10px",fontSize:"10px",fontWeight:"700",background:"rgba(16,185,129,0.15)",color:green,border:"1px solid rgba(16,185,129,0.3)"}}>
-                🎯 {qualified} qualifying now!
-              </span>
-            )}
-          </div>
-
           {sorted.length===0?(
-            <div style={{textAlign:"center",padding:"50px 0"}}>
-              <div style={{fontSize:"40px",marginBottom:"12px"}}>👁️</div>
-              <div style={{color:"#f1f5f9",fontSize:"14px",fontWeight:"600",marginBottom:"6px"}}>
-                {items.length===0?"No stocks yet":"No stocks match filter"}
-              </div>
-              <div style={{color:"#475569",fontSize:"11px"}}>Add tickers above to start monitoring</div>
+            <div style={{padding:"60px 0",textAlign:"center"}}>
+              <div style={{color:"#253345",fontSize:"10px",letterSpacing:"0.1em",marginBottom:"6px"}}>NO STOCKS MONITORED</div>
+              <div style={{color:"#1a2535",fontSize:"9px",letterSpacing:"0.08em"}}>ADD TICKERS ABOVE TO START MONITORING</div>
             </div>
           ):(
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:"11px"}}>
                 <thead>
-                  <tr style={{background:"rgba(6,8,32,0.8)"}}>
-                    {["Score","Ticker","Sector","Theme","Stage","RSI","Entry Zone","Days Watching","Notes","Actions"].map(h=>(
-                      <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:"9px",fontWeight:"700",color:"#475569",textTransform:"uppercase",letterSpacing:"0.06em",borderBottom:"1px solid #1e293b",whiteSpace:"nowrap"}}>{h}</th>
+                  <tr style={{background:"#04080f",borderBottom:"1px solid #1a2535"}}>
+                    {["SCORE","TICKER","SECTOR","THEME","STAGE","RSI","ENTRY","DAYS","NOTES","ACTIONS"].map(h=>(
+                      <th key={h} style={{padding:"6px 10px",textAlign:"left",color:"#253345",fontSize:"8px",letterSpacing:"0.08em",fontWeight:"600",whiteSpace:"nowrap"}}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map(item=>{
+                  {sorted.map((item,i)=>{
+                    const isQual = item.c1_pass&&item.c2_pass;
                     const days = daysSince(item.added);
-                    const isQual = item.c1_pass && item.c2_pass;
                     return (
-                      <tr key={item.id}
-                        style={{borderBottom:"1px solid rgba(30,41,59,0.3)",background:isQual?"rgba(16,185,129,0.03)":item.graduated?"rgba(96,165,250,0.03)":"transparent"}}
-                        onMouseEnter={e=>{e.currentTarget.style.background="rgba(245,158,11,0.04)";}}
-                        onMouseLeave={e=>{e.currentTarget.style.background=isQual?"rgba(16,185,129,0.03)":item.graduated?"rgba(96,165,250,0.03)":"transparent";}}>
-
-                        {/* Score */}
-                        <td style={{padding:"9px 12px"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-                            <span style={{fontFamily:"monospace",fontWeight:"900",fontSize:"14px",color:item.score>0?scoreColor(item.score):"#334155"}}>
-                              {item.score>0?item.score:"—"}
-                            </span>
-                            {item.score>0&&(
-                              <div>
-                                <div style={{width:"40px",height:"3px",background:"#1e293b",borderRadius:"2px",overflow:"hidden"}}>
-                                  <div style={{height:"100%",width:`${item.score*10}%`,background:scoreColor(item.score),borderRadius:"2px"}}></div>
-                                </div>
-                                <div style={{fontSize:"8px",color:"#475569",marginTop:"1px",whiteSpace:"nowrap"}}>{scoreLabel(item.score)}</div>
-                              </div>
-                            )}
-                          </div>
-                          <div style={{display:"flex",gap:"3px",marginTop:"3px"}}>
-                            <span style={{fontSize:"8px",padding:"1px 4px",borderRadius:"3px",background:item.c1_pass?"rgba(16,185,129,0.15)":"rgba(239,68,68,0.1)",color:item.c1_pass?green:red}}>C1</span>
-                            <span style={{fontSize:"8px",padding:"1px 4px",borderRadius:"3px",background:item.c2_pass?"rgba(16,185,129,0.15)":"rgba(239,68,68,0.1)",color:item.c2_pass?green:red}}>C2</span>
-                          </div>
-                        </td>
-
-                        {/* Ticker */}
-                        <td style={{padding:"9px 12px"}}>
+                      <tr key={item.id} style={{borderBottom:"1px solid #0d1520",background:i%2===0?"#0a1420":"#080e18"}}
+                        onMouseEnter={e=>{e.currentTarget.style.background="#0f1c2e";}} onMouseLeave={e=>{e.currentTarget.style.background=i%2===0?"#0a1420":"#080e18";}}>
+                        <td style={{padding:"7px 10px"}}>
                           <div style={{display:"flex",alignItems:"center",gap:"5px"}}>
-                            <span>{item.market==="US"?"🇺🇸":"🇬🇧"}</span>
-                            <span style={{fontFamily:"monospace",fontWeight:"800",color:isQual?green:gold,fontSize:"13px"}}>{item.ticker}</span>
-                            {item.graduated&&<span style={{fontSize:"9px",padding:"1px 5px",borderRadius:"4px",background:"rgba(96,165,250,0.15)",color:blue}}>In Portfolio</span>}
+                            <div style={{width:"3px",height:"28px",background:convColor(item.score),borderRadius:"1px"}}></div>
+                            <div>
+                              <div style={{color:convColor(item.score),fontWeight:"700",fontSize:"13px"}}>{item.score>0?item.score:"—"}</div>
+                              <div style={{display:"flex",gap:"2px",marginTop:"2px"}}>
+                                <span style={{background:item.c1_pass?"#052e16":"#1a0505",color:item.c1_pass?"#22c55e":"#ef4444",fontSize:"7px",padding:"1px 3px"}}>C1</span>
+                                <span style={{background:item.c2_pass?"#052e16":"#1a0505",color:item.c2_pass?"#22c55e":"#ef4444",fontSize:"7px",padding:"1px 3px"}}>C2</span>
+                              </div>
+                            </div>
                           </div>
                         </td>
-
-                        {/* Sector */}
-                        <td style={{padding:"9px 12px"}}>
-                          {item.sector?<span style={{padding:"2px 7px",borderRadius:"8px",fontSize:"9px",fontWeight:"600",background:"rgba(96,165,250,0.1)",color:blue,border:"1px solid rgba(96,165,250,0.2)",whiteSpace:"nowrap"}}>{item.sector}</span>:<span style={{color:"#334155"}}>—</span>}
+                        <td style={{padding:"7px 10px"}}>
+                          <div style={{color:isQual?"#22c55e":"#f59e0b",fontWeight:"700",fontSize:"12px",letterSpacing:"0.03em"}}>{item.market==="US"?"":"🇬🇧 "}{item.ticker}</div>
+                          {item.graduated&&<div style={{color:"#60a5fa",fontSize:"7px",marginTop:"1px",letterSpacing:"0.04em"}}>IN PORTFOLIO</div>}
                         </td>
-
-                        {/* Theme */}
-                        <td style={{padding:"9px 12px"}}>
-                          {item.theme?<span style={{padding:"2px 7px",borderRadius:"8px",fontSize:"9px",fontWeight:"600",background:"rgba(167,139,250,0.1)",color:purple,border:"1px solid rgba(167,139,250,0.2)",whiteSpace:"nowrap"}}>{item.theme}</span>:<span style={{color:"#334155"}}>—</span>}
+                        <td style={{padding:"7px 8px"}}>{item.sector?<span style={{background:"#0a1a2e",color:"#60a5fa",fontSize:"8px",padding:"2px 6px",letterSpacing:"0.04em"}}>{item.sector.substring(0,10).toUpperCase()}</span>:<span style={{color:"#1a2535"}}>—</span>}</td>
+                        <td style={{padding:"7px 8px"}}>{item.theme?<span style={{background:"#140a2e",color:"#a78bfa",fontSize:"8px",padding:"2px 6px",letterSpacing:"0.04em"}}>{item.theme.substring(0,10).toUpperCase()}</span>:<span style={{color:"#1a2535"}}>—</span>}</td>
+                        <td style={{padding:"7px 8px"}}>
+                          {item.stage?<span style={{color:item.stage.includes("Stage 2")?"#22c55e":"#60a5fa",fontSize:"9px",fontWeight:"600"}}>{item.stage.includes("Stage 2")?"STG2":"STG1"}</span>:<span style={{color:"#1a2535"}}>—</span>}
                         </td>
-
-                        {/* Stage */}
-                        <td style={{padding:"9px 12px"}}>
-                          {item.stage?<span style={{padding:"2px 7px",borderRadius:"8px",fontSize:"9px",fontWeight:"600",background:item.stage.includes("Stage 2")?"rgba(16,185,129,0.12)":"rgba(96,165,250,0.1)",color:item.stage.includes("Stage 2")?green:blue,whiteSpace:"nowrap"}}>{item.stage}</span>:<span style={{color:"#334155"}}>—</span>}
+                        <td style={{padding:"7px 8px",color:item.rsi>70?"#ef4444":item.rsi>50?"#f59e0b":item.rsi>0?"#22c55e":"#253345",fontSize:"10px",fontWeight:"600",fontFamily:"monospace"}}>{item.rsi>0?item.rsi.toFixed(0):"—"}</td>
+                        <td style={{padding:"7px 8px",color:"#60a5fa",fontSize:"9px",fontFamily:"monospace",whiteSpace:"nowrap"}}>{item.entry_zone||"—"}</td>
+                        <td style={{padding:"7px 8px"}}>
+                          <div style={{color:"#94a3b8",fontSize:"10px",fontFamily:"monospace"}}>{days}d</div>
+                          <div style={{color:"#253345",fontSize:"8px"}}>{item.added}</div>
                         </td>
-
-                        {/* RSI */}
-                        <td style={{padding:"9px 12px"}}>
-                          <span style={{fontFamily:"monospace",fontSize:"11px",fontWeight:"700",color:item.rsi>0?(item.rsi>70?red:item.rsi>50?gold:green):"#334155"}}>
-                            {item.rsi>0?item.rsi.toFixed(0):"—"}
-                          </span>
-                        </td>
-
-                        {/* Entry Zone */}
-                        <td style={{padding:"9px 12px"}}>
-                          <span style={{fontSize:"10px",color:blue,fontFamily:"monospace",whiteSpace:"nowrap"}}>{item.entry_zone||"—"}</span>
-                        </td>
-
-                        {/* Days watching */}
-                        <td style={{padding:"9px 12px"}}>
-                          <div style={{fontSize:"11px",fontFamily:"monospace",color:steel}}>{days}d</div>
-                          <div style={{fontSize:"9px",color:"#334155"}}>{item.added}</div>
-                        </td>
-
-                        {/* Notes */}
-                        <td style={{padding:"9px 12px",color:steel,fontSize:"10px",maxWidth:"140px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.notes||"—"}</td>
-
-                        {/* Actions */}
-                        <td style={{padding:"9px 12px"}}>
-                          <div style={{display:"flex",gap:"4px",flexWrap:"wrap"}}>
-                            <a href={`/analyzer?ticker=${item.ticker}&market=${item.market}`}
-                              style={{padding:"3px 8px",borderRadius:"5px",fontSize:"9px",fontWeight:"600",cursor:"pointer",border:"1px solid rgba(245,158,11,0.3)",background:"rgba(245,158,11,0.1)",color:gold,textDecoration:"none",whiteSpace:"nowrap"}}>
-                              🔬
-                            </a>
-                            {!item.graduated&&(
-                              <button onClick={()=>graduateToPortfolio(item)}
-                                style={{padding:"3px 8px",borderRadius:"5px",fontSize:"9px",fontWeight:"600",cursor:"pointer",border:"1px solid rgba(96,165,250,0.3)",background:"rgba(96,165,250,0.1)",color:blue,whiteSpace:"nowrap"}}>
-                                📈 Buy
-                              </button>
-                            )}
-                            <button onClick={()=>remove(item.id)}
-                              style={{padding:"3px 8px",borderRadius:"5px",fontSize:"9px",fontWeight:"600",cursor:"pointer",border:"1px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.1)",color:red,whiteSpace:"nowrap"}}>
-                              ✕
-                            </button>
+                        <td style={{padding:"7px 8px",color:"#374151",fontSize:"9px",maxWidth:"120px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.notes||"—"}</td>
+                        <td style={{padding:"7px 8px"}}>
+                          <div style={{display:"flex",gap:"3px",flexWrap:"wrap"}}>
+                            <a href={`/analyzer?ticker=${item.ticker}&market=${item.market}`} style={{background:"transparent",border:"1px solid #253345",color:"#4a5568",fontSize:"8px",padding:"2px 6px",textDecoration:"none",letterSpacing:"0.04em"}}>VIEW</a>
+                            {!item.graduated&&<button onClick={()=>graduateToPortfolio(item)} style={{background:"transparent",border:"1px solid #1a3a5a",color:"#60a5fa",fontSize:"8px",padding:"2px 6px",cursor:"pointer",letterSpacing:"0.04em"}}>BUY→</button>}
+                            <button onClick={()=>remove(item.id)} style={{background:"transparent",border:"1px solid #3a1a1a",color:"#ef4444",fontSize:"8px",padding:"2px 6px",cursor:"pointer"}}>✕</button>
                           </div>
                         </td>
                       </tr>
@@ -544,8 +325,8 @@ export default function Watchlist() {
           )}
         </div>
 
-        <div style={{marginTop:"20px",textAlign:"center",color:"#1e293b",fontSize:"10px"}}>
-          AlphaResearch v1.0 · Not financial advice · For institutional use only
+        <div style={{padding:"8px 14px",borderTop:"1px solid #1a2535",color:"#1a2535",fontSize:"8px",letterSpacing:"0.06em"}}>
+          DATA PERSISTED IN LOCAL STORAGE · SCORE VS 3-CHECKS REQUIRES BACKEND · NOT FINANCIAL ADVICE
         </div>
       </div>
     </div>
