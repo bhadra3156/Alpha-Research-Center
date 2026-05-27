@@ -112,3 +112,10 @@ function AnalyzerInner(){
     </div>
   );
 }
+export default function AnalyzerPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#09090b] text-[#fafafa] flex items-center justify-center"><p className="text-amber-400 text-sm">Loading Analyzer...</p></div>}>
+      <AnalyzerInner />
+    </Suspense>
+  );
+}
