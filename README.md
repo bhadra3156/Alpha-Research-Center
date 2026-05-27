@@ -1,45 +1,69 @@
-# AlphaResearch � Institutional Equity Intelligence Engine
+# AlphaResearch — Phase 1: Dashboard Rebuild
 
-Elite 3-Check equity screening system for US & UK markets.
+## What This Delivers
+The institutional-grade Dashboard page — the command center of the entire platform.
 
-## Stack
-- **Frontend**: Next.js 15 + Tailwind CSS + shadcn/ui ? Vercel
-- **Backend**: FastAPI Python 3.12 ? Render
-- **Database**: Supabase (PostgreSQL)
-- **AI**: Claude Sonnet (analysis) + Groq (batch scoring)
+## Files Included
 
-## The 3-Check Rule
-Every qualifying stock must pass:
-1. ? CHECK 1 � Fundamental Quality
-2. ? CHECK 2 � Technical Phase (Stage 1 or Stage 2 only)
-3. ? CHECK 3 � Smart Money Confirmation
-
-## Quick Start
-
-### Frontend
-```bash
-cd frontend
-npm install
-npm run dev
+### NEW FILES (copy into your project)
+```
+frontend/
+├── lib/
+│   ├── types.ts              # Shared TypeScript types (all pages use these)
+│   └── api.ts                # Typed API client to Render backend
+├── components/
+│   └── shared/
+│       └── ui-primitives.tsx  # Reusable: KpiCard, ConvictionBar, CheckBadge, StageTag, etc.
+└── app/
+    └── dashboard/
+        └── page.tsx           # ⭐ The rebuilt Dashboard page
 ```
 
-### Backend
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+### EXISTING FILES (DO NOT REPLACE — already working)
+```
+frontend/
+├── components/layout/
+│   ├── Layout.tsx             # Keep as-is
+│   └── Navbar.tsx             # Keep as-is (your uploaded version with usePathname)
+├── lib/utils.ts               # Keep as-is (has cn() + formatters)
+├── app/layout.tsx             # Keep as-is (root layout)
+├── app/globals.css            # Keep as-is
+└── tailwind.config.ts         # Keep as-is
 ```
 
-## Build Phases
-- Phase 1: Project scaffold ?
-- Phase 2: Supabase schema
-- Phase 3: Data fetcher
-- Phase 4: Scoring engine
-- Phase 5: Smart money services
-- Phase 6: Scan router
-- Phase 7: AI narrative
-- Phase 8: Frontend dashboard
-- Phase 9: Analyzer page
-- Phase 10: Portfolio + journal
-- Phase 11: Automation
-- Phase 12: Deployment
+## What Changed vs Old Dashboard
+
+| Before | After |
+|--------|-------|
+| Mock data only (7 hardcoded stocks) | Live scan hitting real backend API |
+| No API integration | Full typed api.ts client |
+| Navbar duplicated in every page | Uses shared Layout.tsx + Navbar.tsx |
+| Inline component definitions | Shared ui-primitives.tsx |
+| No sorting | Column-header click sorting |
+| No conviction color-coding spec | Green 9-10 / Amber 7-8 / Blue 5-6 / Red 1-4 |
+| No data quality badges | HIGH / MEDIUM / LOW per spec |
+| No table footer legend | Bloomberg-spec conviction + DQ legend |
+| No 3-Check pass/fail display | Per-row Check badges + StageTag |
+| No RSI color-coding | >70 red / >50 amber / <50 green |
+| ~500 unformatted lines | Clean, typed, production-grade |
+
+## Deployment Steps
+
+1. Open PowerShell in your project root
+2. Run: `.\DEPLOY_PHASE1.ps1` (creates directories)
+3. Copy the 4 new files into the paths shown above
+4. Run: `cd frontend && npm run dev`
+5. Open: http://localhost:3000/dashboard
+6. Click "Run 3-Check Scan" — wait ~30s if Render is cold-starting
+7. You should see qualifying stocks populate the Bloomberg-spec table
+
+## Known Dependencies
+- Backend must be running on Render (or locally at localhost:8000)
+- First scan after deploy takes ~30-60s (Render cold start + 170 tickers)
+- Subsequent scans are faster due to Yahoo Finance data caching (10min TTL)
+
+## Next Phases
+- Phase 2: Analyzer page (single-stock deep analysis with narrative)
+- Phase 3: Watchlist page (with Supabase persistence)
+- Phase 4: Portfolio page (with Supabase persistence)
+- Phase 5: Journal page (already Supabase-backed, needs UI upgrade)
