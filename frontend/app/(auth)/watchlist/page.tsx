@@ -137,6 +137,6 @@ export default function Watchlist(){
           )}
         </div>
         <p className="text-[10px] text-[#27272a] text-center">Data persisted in local storage Â· Score vs 3-Checks requires backend Â· Not financial advice</p>
-      </div>
+    </div>
   );
 }
