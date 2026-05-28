@@ -76,3 +76,9 @@ backend/.env
 frontend/.env.local
 .next/
 node_modules/
+
+# Deploy staging + backups
+.theme-backup-*/
+/globals.css
+/tailwind.config.ts
+/deploy-*.ps1
