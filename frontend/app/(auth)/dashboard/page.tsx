@@ -97,6 +97,14 @@ export default function DashboardPage() {
   const [scanData, setScanData] = useState<ScanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Restore last scan from localStorage on mount (persists until next scan)
+  React.useEffect(() => {
+    try {
+      const cached = localStorage.getItem("alpha_scan_v1");
+      if (cached) setScanData(JSON.parse(cached));
+    } catch {}
+  }, []);
+
   // ── Run Scan ─────────────────────────────────────────────────────────────
   const runScan = useCallback(async () => {
     setScanning(true);
@@ -106,6 +114,7 @@ export default function DashboardPage() {
         marketFilter === "US" ? "US" : marketFilter === "UK" ? "UK" : "BOTH";
       const data = await api.scan(marketParam);
       setScanData(data);
+      try { localStorage.setItem("alpha_scan_v1", JSON.stringify(data)); } catch {}
     } catch (e: any) {
       setError(e.message || "Scan failed — backend may be cold-starting on Render (takes ~30s)");
     }
