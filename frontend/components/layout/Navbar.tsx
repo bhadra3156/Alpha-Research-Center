@@ -1,11 +1,10 @@
 ﻿"use client";
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/analyzer",  label: "Analyzer"  },
+  { href: "/analyzer",  label: "Analyser"  },
   { href: "/watchlist", label: "Watchlist" },
   { href: "/portfolio", label: "Portfolio" },
   { href: "/journal",   label: "Journal"   },
@@ -13,21 +12,25 @@ const navLinks = [
 
 export default function Navbar() {
   const pathname = usePathname();
-
   return (
-    <header className="sticky top-0 z-50 bg-[#18181b]/80 backdrop-blur-md border-b border-[#27272a]">
-      <div className="max-w-[1600px] mx-auto px-4 md:px-6 h-[52px] flex items-center justify-between">
+    <header className="sticky top-0 z-50 bg-[#0a0a0b]/85 backdrop-blur-md border-b border-[#1f1f23]">
+      <div className="max-w-[1600px] mx-auto px-4 md:px-6 h-[64px] flex items-center justify-between">
 
-        <Link href="/dashboard" className="flex items-center gap-2 no-underline">
-          <div className="w-[22px] h-[22px] bg-[#fafafa] rounded-[4px] flex items-center justify-center">
-            <span className="text-[10px] font-black text-[#09090b] tracking-tighter">α</span>
+        {/* Brand */}
+        <Link href="/dashboard" className="flex items-center gap-3 no-underline">
+          <div className="w-[34px] h-[34px] bg-[#f59e0b] rounded-[7px] flex items-center justify-center">
+            <span className="text-[18px] font-bold text-[#0a0a0b] leading-none">α</span>
           </div>
-          <span className="text-[#fafafa] font-bold tracking-[0.1em] text-[11px] uppercase">
+          <span
+            className="text-[#fafafa] font-semibold text-[20px] tracking-[0.18em] uppercase"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+          >
             AlphaResearch
           </span>
         </Link>
 
-        <nav className="flex items-center gap-0">
+        {/* Nav links */}
+        <nav className="flex items-center gap-7">
           {navLinks.map(({ href, label }) => {
             const isActive = pathname.startsWith(href);
             return (
@@ -35,10 +38,10 @@ export default function Navbar() {
                 key={href}
                 href={href}
                 className={[
-                  "text-[12px] font-medium px-3 py-[14px] transition-colors duration-150 no-underline",
+                  "text-[15px] font-medium tracking-[0.04em] uppercase pb-1 transition-colors duration-150 no-underline",
                   isActive
                     ? "text-[#fafafa] border-b-2 border-[#fafafa]"
-                    : "text-[#a1a1aa] hover:text-[#fafafa] border-b-2 border-transparent",
+                    : "text-[#71717a] hover:text-[#d4d4d8] border-b-2 border-transparent",
                 ].join(" ")}
               >
                 {label}
@@ -47,8 +50,9 @@ export default function Navbar() {
           })}
         </nav>
 
-        <div className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-3 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1.5 tracking-wide">
-          <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+        {/* LIVE indicator */}
+        <div className="flex items-center gap-2 text-[#10b981] text-[14px] font-medium tracking-[0.1em]">
+          <span className="w-[7px] h-[7px] bg-[#10b981] rounded-full animate-pulse" />
           LIVE
         </div>
 
