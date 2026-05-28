@@ -10,10 +10,8 @@ import { api } from "@/lib/api";
 import type { QualifyingStock, ScanResponse } from "@/lib/types";
 import {
   KpiCard,
-  ConvictionBar,
   CheckBadge,
   StageTag,
-  DataQualityBadge,
   ScanLoading,
   EmptyState,
 } from "@/components/shared/ui-primitives";
@@ -26,26 +24,6 @@ function fmtPrice(v: number, market: string) {
   return `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function fmtMktCap(v: number) {
-  if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
-  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
-  if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
-  return `$${v.toLocaleString()}`;
-}
-
-function convColor(s: number) {
-  if (s >= 9) return "text-emerald-400";
-  if (s >= 7) return "text-amber-400";
-  if (s >= 5) return "text-blue-400";
-  return "text-rose-400";
-}
-
-function chgColor(v: number) {
-  if (v > 0) return "text-emerald-400";
-  if (v < 0) return "text-rose-400";
-  return "text-[#52525b]";
-}
-
 function rsiColor(v: number) {
   if (v >= 70) return "text-rose-400";
   if (v >= 50) return "text-amber-400";
@@ -55,7 +33,6 @@ function rsiColor(v: number) {
 
 // ─── Filter Constants ────────────────────────────────────────────────────────
 const MARKETS = ["Both", "US", "UK"] as const;
-const CONVICTION_FILTERS = ["All", "High (8–10)", "Medium (5–7)", "Low (1–4)"] as const;
 const THEMES = [
   "All",
   "AI Infrastructure",
@@ -70,18 +47,13 @@ const THEMES = [
 
 // ─── Table Header Columns ────────────────────────────────────────────────────
 const COLUMNS = [
-  { key: "conviction", label: "Conv.", align: "text-center" },
   { key: "ticker", label: "Ticker", align: "text-left" },
   { key: "company", label: "Company", align: "text-left" },
   { key: "price", label: "Price", align: "text-right" },
-  { key: "chg", label: "Chg%", align: "text-right" },
-  { key: "mktcap", label: "Mkt Cap", align: "text-right" },
   { key: "fund", label: "Fundamental", align: "text-center" },
   { key: "tech", label: "Stage", align: "text-center" },
-  { key: "smart", label: "Smart $", align: "text-left" },
   { key: "rsi", label: "RSI", align: "text-right" },
   { key: "entry", label: "Entry Zone", align: "text-right" },
-  { key: "dq", label: "DQ", align: "text-center" },
   { key: "action", label: "", align: "text-center" },
 ] as const;
 
@@ -89,9 +61,8 @@ const COLUMNS = [
 export default function DashboardPage() {
   const [marketFilter, setMarketFilter] = useState<string>("Both");
   const [themeFilter, setThemeFilter] = useState<string>("All");
-  const [convFilter, setConvFilter] = useState<string>("All");
-  const [sortCol, setSortCol] = useState<string>("conviction");
-  const [sortAsc, setSortAsc] = useState(false);
+  const [sortCol, setSortCol] = useState<string>("ticker");
+  const [sortAsc, setSortAsc] = useState(true);
 
   const [scanning, setScanning] = useState(false);
   const [scanData, setScanData] = useState<ScanResponse | null>(null);
@@ -128,30 +99,23 @@ export default function DashboardPage() {
     if (marketFilter !== "Both" && s.market !== marketFilter) return false;
     if (themeFilter !== "All" && !s.sector?.toLowerCase().includes(themeFilter.toLowerCase()))
       return false;
-    if (convFilter === "High (8–10)" && s.conviction_score < 8) return false;
-    if (convFilter === "Medium (5–7)" && (s.conviction_score < 5 || s.conviction_score > 7))
-      return false;
-    if (convFilter === "Low (1–4)" && s.conviction_score > 4) return false;
     return true;
   });
 
   const sorted = [...filtered].sort((a, b) => {
     let cmp = 0;
     switch (sortCol) {
-      case "conviction": cmp = a.conviction_score - b.conviction_score; break;
       case "ticker": cmp = a.ticker.localeCompare(b.ticker); break;
       case "price": cmp = a.price - b.price; break;
-      case "chg": cmp = a.change_pct - b.change_pct; break;
-      case "mktcap": cmp = a.market_cap - b.market_cap; break;
       case "rsi": cmp = a.rsi14 - b.rsi14; break;
-      default: cmp = a.conviction_score - b.conviction_score;
+      default: cmp = a.ticker.localeCompare(b.ticker);
     }
     return sortAsc ? cmp : -cmp;
   });
 
   const handleSort = (col: string) => {
     if (sortCol === col) setSortAsc(!sortAsc);
-    else { setSortCol(col); setSortAsc(false); }
+    else { setSortCol(col); setSortAsc(true); }
   };
 
   // ── KPI Summary ──────────────────────────────────────────────────────────
@@ -250,17 +214,6 @@ export default function DashboardPage() {
             ))}
           </select>
 
-          {/* Conviction */}
-          <select
-            value={convFilter}
-            onChange={(e) => setConvFilter(e.target.value)}
-            className="bg-[#09090b] border border-[#27272a] text-[#fafafa] px-3 py-1.5 text-xs rounded focus:outline-none focus:border-amber-500/40"
-          >
-            {CONVICTION_FILTERS.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-
           <div className="flex-1" />
 
           <div className="flex items-center gap-3">
@@ -347,22 +300,11 @@ export default function DashboardPage() {
               {/* Body */}
               <tbody>
                 {sorted.map((s) => {
-                  const allPass = s.check1_pass && s.check2_pass && s.check3_pass;
                   return (
                     <tr
                       key={s.ticker}
                       className="border-b border-[#1E2530]/50 last:border-0 hover:bg-[#161C28]/60 transition-colors"
                     >
-                      {/* Conviction */}
-                      <td className="px-4 py-2.5 text-center">
-                        <div className="flex flex-col items-center gap-1">
-                          <ConvictionBar score={s.conviction_score} />
-                          <span className={`font-bold font-mono text-sm ${convColor(s.conviction_score)}`}>
-                            {s.conviction_score}
-                          </span>
-                        </div>
-                      </td>
-
                       {/* Ticker */}
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
@@ -385,17 +327,6 @@ export default function DashboardPage() {
                         {fmtPrice(s.price, s.market)}
                       </td>
 
-                      {/* Change % */}
-                      <td className={`px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums ${chgColor(s.change_pct)}`}>
-                        {s.change_pct > 0 ? "+" : ""}
-                        {s.change_pct.toFixed(1)}%
-                      </td>
-
-                      {/* Market Cap */}
-                      <td className="px-4 py-2.5 text-right font-mono text-xs text-[#a1a1aa] tabular-nums">
-                        {fmtMktCap(s.market_cap)}
-                      </td>
-
                       {/* Fundamental */}
                       <td className="px-4 py-2.5 text-center">
                         <CheckBadge pass={s.check1_pass} />
@@ -406,11 +337,6 @@ export default function DashboardPage() {
                         <StageTag stage={s.technical_stage} />
                       </td>
 
-                      {/* Smart Money */}
-                      <td className="px-4 py-2.5 text-xs text-[#a1a1aa]">
-                        {s.smart_money_trigger || "—"}
-                      </td>
-
                       {/* RSI */}
                       <td className={`px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums ${rsiColor(s.rsi14)}`}>
                         {s.rsi14 > 0 ? s.rsi14.toFixed(0) : "—"}
@@ -419,11 +345,6 @@ export default function DashboardPage() {
                       {/* Entry Zone */}
                       <td className="px-4 py-2.5 text-right font-mono text-xs text-blue-400 whitespace-nowrap tabular-nums">
                         {s.entry_zone || "—"}
-                      </td>
-
-                      {/* Data Quality */}
-                      <td className="px-4 py-2.5 text-center">
-                        <DataQualityBadge quality={s.data_quality} />
                       </td>
 
                       {/* Action */}
@@ -442,57 +363,12 @@ export default function DashboardPage() {
             </table>
           </div>
 
-          {/* ── Table Footer / Legend ───────────────────────────────────── */}
-          <div className="grid grid-cols-2 gap-6 border-t border-[#1E2530] bg-[#0A0D14] p-4 text-[11px] text-[#64748B]">
-            {/* Conviction Legend */}
-            <div className="space-y-1.5">
-              <p className="font-semibold text-[#94a3b8] uppercase tracking-wider text-[10px]">
-                Conviction Tiers
-              </p>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="w-0.5 h-3 rounded-full bg-emerald-400" />
-                  <span>9–10 Maximum Conviction</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-0.5 h-3 rounded-full bg-amber-400" />
-                  <span>7–8 High Conviction</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-0.5 h-3 rounded-full bg-blue-400" />
-                  <span>5–6 Moderate</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-0.5 h-3 rounded-full bg-rose-400" />
-                  <span>1–4 Low — Monitor Only</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Data Quality Legend */}
-            <div className="space-y-1.5">
-              <p className="font-semibold text-[#94a3b8] uppercase tracking-wider text-[10px]">
-                Data Quality
-              </p>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <DataQualityBadge quality="HIGH" />
-                  <span>Mkt cap &gt;$10B · Primary sources verified</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <DataQualityBadge quality="MEDIUM" />
-                  <span>Mkt cap $1B–$10B · Some data gaps</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <DataQualityBadge quality="LOW" />
-                  <span>Mkt cap &lt;$1B · Limited coverage</span>
-                </div>
-              </div>
-              <p className="text-[10px] text-[#3f3f46] mt-2">
-                3-Check Rule: Only stocks passing ALL three checks (Fundamental +
-                Technical + Smart Money) qualify. 2/3 = rejected.
-              </p>
-            </div>
+          {/* ── Table Footer ────────────────────────────────────────────── */}
+          <div className="border-t border-[#1E2530] bg-[#0A0D14] p-4 text-[11px] text-[#64748B]">
+            <p className="text-[10px] text-[#3f3f46]">
+              3-Check Rule: Only stocks passing ALL three checks (Fundamental +
+              Technical + Smart Money) qualify. 2/3 = rejected.
+            </p>
           </div>
         </div>
       )}
@@ -501,7 +377,7 @@ export default function DashboardPage() {
       {!scanning && scanData && sorted.length === 0 && (
         <EmptyState
           title="No stocks match current filters"
-          subtitle="Adjust market, theme, or conviction filters, or run a new scan."
+          subtitle="Adjust market or theme filters, or run a new scan."
         />
       )}
 
