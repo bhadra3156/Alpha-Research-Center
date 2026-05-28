@@ -1,12 +1,8 @@
 /* =============================================================
-   AlphaResearch — Institutional Minimalist Theme + OANDA Signatures
-   File: frontend/app/globals.css  (REPLACE EXISTING)
-   v1.2 — Adds 4 OANDA-style signatures (CSS-only, all pages):
-          1. Colored top-border accents on cards
-          2. Left accent bar on section headers
-          3. Faint grid texture page background
-          4. Big mono numbers (reinforced)
-          All v1.1 minimalist classes preserved unchanged.
+   AlphaResearch — Institutional Minimalist Theme
+   File: app/globals.css  (REPLACE EXISTING)
+   v1.1 — Zero-impact restyle. All existing component class names
+          preserved. Drop-in replacement.
    ============================================================= */
 
 @tailwind base;
@@ -14,39 +10,46 @@
 @tailwind utilities;
 
 /* -------------------------------------------------------------
-   1. DESIGN TOKENS
+   1. DESIGN TOKENS  (CSS variables — single source of truth)
    ------------------------------------------------------------- */
 @layer base {
   :root {
-    --bg-base:        #0a0a0b;
-    --bg-surface:     #111113;
-    --bg-elevated:    #161618;
-    --bg-input:       #0f0f11;
+    /* Surfaces */
+    --bg-base:        #0a0a0b;   /* page background */
+    --bg-surface:     #111113;   /* cards, panels */
+    --bg-elevated:    #161618;   /* hover, popovers */
+    --bg-input:       #0f0f11;   /* form fields */
 
+    /* Borders */
     --border-subtle:  #1f1f23;
     --border-default: #27272a;
     --border-strong:  #3f3f46;
 
+    /* Text */
     --text-primary:   #fafafa;
     --text-secondary: #a1a1aa;
     --text-muted:     #71717a;
     --text-faint:     #52525b;
 
-    --accent:         #f59e0b;
-    --accent-hover:   #fbbf24;
-    --accent-dim:     #b45309;
+    /* Accent — single brand color, used sparingly */
+    --accent:         #f59e0b;   /* amber-500 */
+    --accent-hover:   #fbbf24;   /* amber-400 */
+    --accent-dim:     #b45309;   /* amber-700 */
 
+    /* Functional status (data-driven only) */
     --status-pass:    #10b981;
     --status-fail:    #ef4444;
     --status-stage:   #3b82f6;
     --status-smart:   #a855f7;
     --status-warn:    #f59e0b;
 
+    /* Radii */
     --radius-sm: 4px;
     --radius:    6px;
     --radius-lg: 8px;
   }
 
+  /* Base reset */
   html, body {
     background: var(--bg-base);
     color: var(--text-primary);
@@ -56,22 +59,16 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* === SIGNATURE 3: Faint grid texture on page background === */
-  body {
-    background-image:
-      linear-gradient(rgba(120,120,130,0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(120,120,130,0.025) 1px, transparent 1px);
-    background-size: 24px 24px;
-    background-attachment: fixed;
-  }
-
+  /* Numbers always tabular + mono */
   .tabular, .font-mono, code, pre, kbd {
     font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
     font-variant-numeric: tabular-nums;
   }
 
+  /* Selection */
   ::selection { background: var(--accent); color: var(--bg-base); }
 
+  /* Scrollbar — minimal */
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 4px; }
@@ -79,29 +76,25 @@
 }
 
 /* -------------------------------------------------------------
-   2. COMPONENT CLASSES
+   2. COMPONENT CLASSES  (preserve every name already in use)
    ------------------------------------------------------------- */
 @layer components {
 
+  /* === CARD — replaces gradients with flat surface === */
   .card {
     @apply rounded-md;
     background: var(--bg-surface);
     border: 1px solid var(--border-default);
     box-shadow: none;
   }
-  .card-hover { transition: border-color 150ms ease; }
-  .card-hover:hover { border-color: var(--border-strong); }
+  .card-hover {
+    transition: border-color 150ms ease;
+  }
+  .card-hover:hover {
+    border-color: var(--border-strong);
+  }
 
-  /* === SIGNATURE 1: Colored top-border accents ===
-     Opt-in via .accent-* classes. Apply to any card.
-     Semantic where it makes sense, neutral elsewhere. */
-  .accent-top-pass    { border-top: 2px solid var(--status-pass) !important; }
-  .accent-top-fail    { border-top: 2px solid var(--status-fail) !important; }
-  .accent-top-stage   { border-top: 2px solid var(--status-stage) !important; }
-  .accent-top-smart   { border-top: 2px solid var(--status-smart) !important; }
-  .accent-top-amber   { border-top: 2px solid var(--accent) !important; }
-  .accent-top-neutral { border-top: 2px solid var(--border-strong) !important; }
-
+  /* === BADGES — flat, no glow, single tone === */
   .badge-pass {
     @apply text-[10px] font-semibold px-2 py-0.5 rounded;
     background: rgba(16, 185, 129, 0.08);
@@ -133,6 +126,7 @@
     border: 1px solid var(--border-default);
   }
 
+  /* === METRICS — page hero numbers === */
   .metric-number {
     @apply text-2xl font-bold tracking-tight tabular-nums;
     color: var(--text-primary);
@@ -143,6 +137,7 @@
     color: var(--text-muted);
   }
 
+  /* === BUTTON UTILITIES — for any inline use === */
   .btn-primary {
     @apply text-[12px] font-semibold px-4 py-2 rounded transition-colors duration-150;
     background: var(--accent);
@@ -167,6 +162,7 @@
   }
   .btn-ghost:hover { color: var(--text-primary); background: var(--bg-elevated); }
 
+  /* === TABLE PRIMITIVES — for the scan/watchlist grids === */
   .table-cell {
     @apply text-[12px] py-2.5 px-3;
     color: var(--text-primary);
@@ -180,6 +176,7 @@
   }
   .table-row-hover:hover { background: var(--bg-elevated); }
 
+  /* === SECTION HEADING — minimalist tier === */
   .section-label {
     @apply text-[10px] font-semibold uppercase tracking-widest;
     color: var(--text-muted);
@@ -194,27 +191,7 @@
     color: var(--text-secondary);
   }
 
-  /* === SIGNATURE 2: Left accent bar on section headers ===
-     Opt-in via .section-bar. Wrap a heading or add as a span. */
-  .section-bar {
-    position: relative;
-    padding-left: 12px;
-  }
-  .section-bar::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 3px;
-    height: 14px;
-    background: var(--accent);
-    border-radius: 1px;
-  }
-  .section-bar-pass::before  { background: var(--status-pass); }
-  .section-bar-stage::before { background: var(--status-stage); }
-  .section-bar-smart::before { background: var(--status-smart); }
-
+  /* === LIVE INDICATOR (used in Navbar) === */
   .live-dot {
     @apply w-1.5 h-1.5 rounded-full;
     background: var(--status-pass);
@@ -222,6 +199,7 @@
     animation: pulse-live 2s ease-in-out infinite;
   }
 
+  /* === FORM INPUTS — flat, dense === */
   .input-base {
     @apply text-[12px] px-3 py-2 rounded transition-colors duration-150 w-full;
     background: var(--bg-input);
@@ -229,25 +207,31 @@
     border: 1px solid var(--border-default);
     font-family: 'JetBrains Mono', monospace;
   }
-  .input-base:focus { outline: none; border-color: var(--accent); }
+  .input-base:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
   .input-base::placeholder { color: var(--text-faint); }
 }
 
 /* -------------------------------------------------------------
-   3. KEYFRAMES
+   3. KEYFRAMES — only the essentials
    ------------------------------------------------------------- */
 @keyframes pulse-live {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.5; }
 }
+
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(2px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
 .animate-fade-in { animation: fade-in 200ms ease-out; }
 
 /* -------------------------------------------------------------
-   4. OVERRIDES — neutralize legacy gradients/glows
+   4. OVERRIDES — neutralize legacy gradients/glows if any
+      component still references them via tailwind config
    ------------------------------------------------------------- */
 .bg-gradient-navy,
 .bg-gradient-card,
@@ -255,6 +239,7 @@
   background: var(--bg-surface) !important;
   background-image: none !important;
 }
+
 .shadow-gold-glow,
 .shadow-navy-glow,
 .shadow-card,
