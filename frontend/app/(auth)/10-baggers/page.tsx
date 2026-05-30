@@ -1,0 +1,519 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// AlphaResearch — 10-Baggers Scanner
+// Small-cap sweet spot: $300M–$5B · Institutional coverage gap
+// Same 3-Check methodology, dedicated small-cap universe
+// ─────────────────────────────────────────────────────────────────────────────
+"use client";
+
+import React, { useState, useCallback } from "react";
+import Link from "next/link";
+import type { QualifyingStock, ScanResponse } from "@/lib/types";
+import {
+  KpiCard,
+  ConvictionBar,
+  CheckBadge,
+  StageTag,
+  DataQualityBadge,
+  ScanLoading,
+  EmptyState,
+} from "@/components/shared/ui-primitives";
+
+// ─── API ─────────────────────────────────────────────────────────────────────
+const API =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://alpha-research-center-backend.onrender.com";
+
+async function scan10Baggers(): Promise<ScanResponse> {
+  const res = await fetch(`${API}/scan/10baggers/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ market: "US", notify_telegram: false }),
+  });
+  if (!res.ok) throw new Error(`Scan failed: ${res.status}`);
+  return res.json();
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function fmtPrice(v: number) {
+  return `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtMktCap(v: number) {
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
+  return `$${v.toLocaleString()}`;
+}
+
+function convColor(s: number) {
+  if (s >= 9) return "text-emerald-400";
+  if (s >= 7) return "text-amber-400";
+  if (s >= 5) return "text-blue-400";
+  return "text-rose-400";
+}
+
+function chgColor(v: number) {
+  if (v > 0) return "text-emerald-400";
+  if (v < 0) return "text-rose-400";
+  return "text-[#52525b]";
+}
+
+function rsiColor(v: number) {
+  if (v >= 70) return "text-rose-400";
+  if (v >= 50) return "text-amber-400";
+  if (v > 0) return "text-emerald-400";
+  return "text-[#52525b]";
+}
+
+function mktCapColor(v: number) {
+  if (v >= 2e9) return "text-emerald-400";
+  if (v >= 1e9) return "text-amber-400";
+  return "text-blue-400";
+}
+
+// ─── Columns ─────────────────────────────────────────────────────────────────
+const COLUMNS = [
+  { key: "conviction", label: "Conv.", align: "text-center" },
+  { key: "ticker", label: "Ticker", align: "text-left" },
+  { key: "company", label: "Company", align: "text-left" },
+  { key: "price", label: "Price", align: "text-right" },
+  { key: "chg", label: "Chg%", align: "text-right" },
+  { key: "mktcap", label: "Mkt Cap", align: "text-right" },
+  { key: "fund", label: "Fund.", align: "text-center" },
+  { key: "tech", label: "Stage", align: "text-center" },
+  { key: "rsi", label: "RSI", align: "text-right" },
+  { key: "entry", label: "Entry Zone", align: "text-right" },
+  { key: "dq", label: "DQ", align: "text-center" },
+  { key: "action", label: "", align: "text-center" },
+] as const;
+
+const SECTORS = [
+  "All", "Technology", "Healthcare", "Industrials", "Consumer",
+  "Energy", "Financials", "Communication",
+] as const;
+
+// ─── Page ────────────────────────────────────────────────────────────────────
+export default function TenBaggersPage() {
+  const [scanning, setScanning] = useState(false);
+  const [scanData, setScanData] = useState<ScanResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [sectorFilter, setSectorFilter] = useState("All");
+  const [sortCol, setSortCol] = useState<string>("conviction");
+  const [sortAsc, setSortAsc] = useState(false);
+
+  // Restore cached scan
+  React.useEffect(() => {
+    try {
+      const cached = localStorage.getItem("alpha_10baggers_v1");
+      if (cached) setScanData(JSON.parse(cached));
+    } catch {}
+  }, []);
+
+  const runScan = useCallback(async () => {
+    setScanning(true);
+    setError(null);
+    try {
+      const data = await scan10Baggers();
+      setScanData(data);
+      try {
+        localStorage.setItem("alpha_10baggers_v1", JSON.stringify(data));
+      } catch {}
+    } catch (e: any) {
+      setError(
+        e.message ||
+          "Scan failed — backend may be cold-starting on Render (~30s)"
+      );
+    }
+    setScanning(false);
+  }, []);
+
+  // ── Filter + Sort ──────────────────────────────────────────────────────
+  const stocks = scanData?.qualifying_stocks || [];
+
+  const filtered = stocks.filter((s) => {
+    if (sectorFilter !== "All" && !s.sector?.toLowerCase().includes(sectorFilter.toLowerCase()))
+      return false;
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    switch (sortCol) {
+      case "conviction": cmp = a.conviction_score - b.conviction_score; break;
+      case "ticker": cmp = a.ticker.localeCompare(b.ticker); break;
+      case "price": cmp = a.price - b.price; break;
+      case "chg": cmp = a.change_pct - b.change_pct; break;
+      case "mktcap": cmp = a.market_cap - b.market_cap; break;
+      case "rsi": cmp = a.rsi14 - b.rsi14; break;
+      default: cmp = a.conviction_score - b.conviction_score;
+    }
+    return sortAsc ? cmp : -cmp;
+  });
+
+  const handleSort = (col: string) => {
+    if (sortCol === col) setSortAsc(!sortAsc);
+    else { setSortCol(col); setSortAsc(false); }
+  };
+
+  // ── KPI ────────────────────────────────────────────────────────────────
+  const highConv = stocks.filter((s) => s.conviction_score >= 8).length;
+  const avgMktCap =
+    stocks.length > 0
+      ? stocks.reduce((a, b) => a + b.market_cap, 0) / stocks.length
+      : 0;
+  const avgConv =
+    stocks.length > 0
+      ? (stocks.reduce((a, b) => a + b.conviction_score, 0) / stocks.length).toFixed(1)
+      : "—";
+
+  return (
+    <div className="space-y-5">
+      {/* ── Header ───────────────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-[18px] font-bold tracking-tight text-[#fafafa]">
+            10-<span className="text-amber-400">Baggers</span>
+          </h1>
+          <p className="text-xs text-[#52525b] mt-0.5">
+            Small-Cap Sweet Spot · $300M–$5B Market Cap · Institutional Coverage Gap
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard"
+            className="px-4 py-2.5 text-xs font-medium rounded-lg border border-[#27272a] text-[#a1a1aa] hover:text-[#fafafa] hover:border-[#52525b] transition-colors no-underline"
+          >
+            ← Main Dashboard
+          </Link>
+          <button
+            onClick={runScan}
+            disabled={scanning}
+            className={`px-6 py-2.5 text-xs font-bold rounded-lg transition-all ${
+              scanning
+                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20 cursor-wait"
+                : "bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 active:translate-y-px"
+            }`}
+          >
+            {scanning ? "⚡ Scanning…" : "⚡ Scan 10-Baggers"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── KPI Strip ────────────────────────────────────────────────────── */}
+      {scanData && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <KpiCard
+            label="Universe Scanned"
+            value={String(scanData.stocks_scanned)}
+            sub="$300M–$5B only"
+          />
+          <KpiCard
+            label="Qualifying"
+            value={String(scanData.qualifying_count)}
+            sub="Passed 3-Check"
+            color="text-emerald-400"
+          />
+          <KpiCard
+            label="High Conviction"
+            value={String(highConv)}
+            sub="Score ≥ 8"
+            color="text-amber-400"
+          />
+          <KpiCard
+            label="Avg Mkt Cap"
+            value={avgMktCap > 0 ? fmtMktCap(avgMktCap) : "—"}
+            sub="Sweet spot range"
+          />
+          <KpiCard
+            label="Scan Time"
+            value={`${(scanData.scan_duration_ms / 1000).toFixed(1)}s`}
+            sub={new Date(scanData.scan_date).toLocaleTimeString()}
+          />
+        </div>
+      )}
+
+      {/* ── Filter Bar ───────────────────────────────────────────────────── */}
+      {scanData && (
+        <div className="bg-[#18181b] border border-[#27272a] rounded-xl px-5 py-3 flex items-center gap-3 flex-wrap">
+          <span className="text-[10px] font-semibold text-[#71717a] uppercase tracking-widest mr-1">
+            Sector
+          </span>
+          <select
+            value={sectorFilter}
+            onChange={(e) => setSectorFilter(e.target.value)}
+            className="bg-[#09090b] border border-[#27272a] text-[#fafafa] px-3 py-1.5 text-xs rounded focus:outline-none focus:border-amber-500/40"
+          >
+            {SECTORS.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+
+          <div className="flex-1" />
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="text-[10px] text-[#52525b]">{sorted.length} qualifying</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <span className="text-[10px] text-[#52525b]">{highConv} high conviction</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+              <span className="text-[10px] text-[#52525b]">$300M–$5B enforced</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Error ────────────────────────────────────────────────────────── */}
+      {error && (
+        <div className="bg-rose-950/40 border border-rose-800/40 text-rose-400 text-xs px-4 py-3 rounded-lg">
+          ⚠ {error}
+        </div>
+      )}
+
+      {/* ── Loading ──────────────────────────────────────────────────────── */}
+      {scanning && (
+        <ScanLoading label="⚡ Scanning 120+ small-cap stocks ($300M–$5B)…" />
+      )}
+
+      {/* ── Pre-scan Empty State ─────────────────────────────────────────── */}
+      {!scanning && !scanData && !error && (
+        <div className="bg-[#18181b] border border-[#27272a] rounded-xl p-12 space-y-6">
+          <div className="text-center space-y-2">
+            <p className="text-[#fafafa] text-sm font-semibold tracking-wider uppercase">
+              🎯 10-Bagger Discovery Engine
+            </p>
+            <p className="text-xs text-[#52525b] max-w-lg mx-auto">
+              Scans 120+ small-cap stocks in the $300M–$5B sweet spot — the range
+              where institutional coverage gaps create structural mispricings and
+              10x–20x return potential.
+            </p>
+          </div>
+
+          {/* Why this range */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-3xl mx-auto">
+            <div className="bg-[#09090b] border border-emerald-800/30 rounded-xl p-4 space-y-2">
+              <p className="text-emerald-400 text-[10px] font-semibold tracking-widest">
+                🎯 SWEET SPOT: $300M–$5B
+              </p>
+              <p className="text-[#a1a1aa] text-xs font-semibold">
+                Maximum Growth Runway
+              </p>
+              <p className="text-[#52525b] text-[10px] leading-relaxed">
+                A $500M company can realistically 10x to $5B. Enough institutional
+                quality, but small enough for explosive growth.
+              </p>
+            </div>
+            <div className="bg-[#09090b] border border-rose-800/30 rounded-xl p-4 space-y-2">
+              <p className="text-rose-400 text-[10px] font-semibold tracking-widest">
+                ❌ BELOW $300M
+              </p>
+              <p className="text-[#a1a1aa] text-xs font-semibold">
+                Micro-Cap Risk Zone
+              </p>
+              <p className="text-[#52525b] text-[10px] leading-relaxed">
+                Governance gaps, pump-and-dump risk, existential fragility. Filtered
+                out automatically.
+              </p>
+            </div>
+            <div className="bg-[#09090b] border border-rose-800/30 rounded-xl p-4 space-y-2">
+              <p className="text-rose-400 text-[10px] font-semibold tracking-widest">
+                ❌ ABOVE $5B
+              </p>
+              <p className="text-[#a1a1aa] text-xs font-semibold">
+                Law of Large Numbers
+              </p>
+              <p className="text-[#52525b] text-[10px] leading-relaxed">
+                Hyper-efficient markets, thousands of analysts. A $20B company needs
+                to become $200B for 10x — mathematically rare.
+              </p>
+            </div>
+          </div>
+
+          {/* 3-Check reminder */}
+          <div className="flex justify-center gap-px max-w-lg mx-auto">
+            {[
+              ["01", "Fundamentals", "Revenue · Margins · FCF · Balance Sheet"],
+              ["02", "Technicals", "Weinstein Stage · MA50/200 · RSI · Volume"],
+              ["03", "Smart Money", "13F · Form 4 Insider · STOCK Act"],
+            ].map(([num, title, desc]) => (
+              <div
+                key={num}
+                className="flex-1 p-3 bg-[#09090b] border border-[#27272a] text-left space-y-1"
+              >
+                <p className="text-[#FFB000] text-[10px] font-semibold tracking-widest">
+                  CHECK {num}
+                </p>
+                <p className="text-[#a1a1aa] text-[11px] font-semibold">{title}</p>
+                <p className="text-[#52525b] text-[9px]">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Bloomberg-Spec Table ──────────────────────────────────────────── */}
+      {!scanning && scanData && sorted.length > 0 && (
+        <div className="w-full overflow-hidden rounded-lg border border-[#1E2530] bg-[#0C0F16]">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-[#0A0D14]">
+                  {COLUMNS.map((col) => (
+                    <th
+                      key={col.key}
+                      onClick={() => handleSort(col.key)}
+                      className={`text-[11px] font-bold uppercase tracking-wider text-[#64748B] px-4 py-3 border-b border-[#1E2530] whitespace-nowrap cursor-pointer hover:text-[#94a3b8] transition-colors select-none ${col.align}`}
+                    >
+                      {col.label}
+                      {sortCol === col.key && (
+                        <span className="ml-1 text-amber-500">
+                          {sortAsc ? "↑" : "↓"}
+                        </span>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((s) => (
+                  <tr
+                    key={s.ticker}
+                    className="border-b border-[#1E2530]/50 last:border-0 hover:bg-[#161C28]/60 transition-colors"
+                  >
+                    {/* Conviction */}
+                    <td className="px-4 py-2.5 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <ConvictionBar score={s.conviction_score} />
+                        <span className={`font-bold font-mono text-sm ${convColor(s.conviction_score)}`}>
+                          {s.conviction_score}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* Ticker */}
+                    <td className="px-4 py-2.5">
+                      <span className="font-bold text-[#FFB000] text-sm tracking-wide">
+                        {s.ticker}
+                      </span>
+                    </td>
+
+                    {/* Company */}
+                    <td className="px-4 py-2.5 text-xs text-[#a1a1aa] max-w-[140px] truncate">
+                      {s.company_name}
+                    </td>
+
+                    {/* Price */}
+                    <td className="px-4 py-2.5 text-right font-mono text-sm text-[#fafafa] font-semibold tabular-nums">
+                      {fmtPrice(s.price)}
+                    </td>
+
+                    {/* Change % */}
+                    <td className={`px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums ${chgColor(s.change_pct)}`}>
+                      {s.change_pct > 0 ? "+" : ""}
+                      {s.change_pct.toFixed(1)}%
+                    </td>
+
+                    {/* Market Cap */}
+                    <td className={`px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums ${mktCapColor(s.market_cap)}`}>
+                      {fmtMktCap(s.market_cap)}
+                    </td>
+
+                    {/* Fundamental */}
+                    <td className="px-4 py-2.5 text-center">
+                      <CheckBadge pass={s.check1_pass} />
+                    </td>
+
+                    {/* Stage */}
+                    <td className="px-4 py-2.5 text-center">
+                      <StageTag stage={s.technical_stage} />
+                    </td>
+
+                    {/* RSI */}
+                    <td className={`px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums ${rsiColor(s.rsi14)}`}>
+                      {s.rsi14 > 0 ? s.rsi14.toFixed(0) : "—"}
+                    </td>
+
+                    {/* Entry Zone */}
+                    <td className="px-4 py-2.5 text-right font-mono text-xs text-blue-400 whitespace-nowrap tabular-nums">
+                      {s.entry_zone || "—"}
+                    </td>
+
+                    {/* Data Quality */}
+                    <td className="px-4 py-2.5 text-center">
+                      <DataQualityBadge quality={s.data_quality} />
+                    </td>
+
+                    {/* Action */}
+                    <td className="px-4 py-2.5 text-center">
+                      <Link
+                        href={`/analyzer?ticker=${s.ticker}&market=${s.market}`}
+                        className="text-[10px] font-semibold px-3 py-1.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20 transition-colors no-underline whitespace-nowrap"
+                      >
+                        Deep Analyze →
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Footer */}
+          <div className="grid grid-cols-2 gap-6 border-t border-[#1E2530] bg-[#0A0D14] p-4 text-[11px] text-[#64748B]">
+            <div className="space-y-1.5">
+              <p className="font-semibold text-[#94a3b8] uppercase tracking-wider text-[10px]">
+                Market Cap Tiers
+              </p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-0.5 h-3 rounded-full bg-emerald-400" />
+                  <span>$2B–$5B — Early Mid-Cap, strongest fundamentals</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-0.5 h-3 rounded-full bg-amber-400" />
+                  <span>$1B–$2B — Core Small-Cap, high growth potential</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-0.5 h-3 rounded-full bg-blue-400" />
+                  <span>$300M–$1B — Early Small-Cap, maximum runway</span>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <p className="font-semibold text-[#94a3b8] uppercase tracking-wider text-[10px]">
+                10-Bagger Thesis
+              </p>
+              <p className="text-[10px] leading-relaxed">
+                Companies below $5B sit in the institutional coverage gap — too small
+                for BlackRock/Vanguard to buy meaningfully, too few analysts covering them.
+                This creates structural mispricings where diligent research finds gems
+                before Wall Street notices.
+              </p>
+              <p className="text-[10px] text-[#3f3f46]">
+                Hard filter: &lt;$300M rejected (micro-cap risk) · &gt;$5B rejected (efficient markets)
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── No Results ───────────────────────────────────────────────────── */}
+      {!scanning && scanData && sorted.length === 0 && (
+        <EmptyState
+          title="No small-caps match all 3 checks"
+          subtitle="This is expected — the 3-Check filter is strict. Try adjusting sector filter or run a new scan."
+        />
+      )}
+
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <p className="text-[10px] text-[#27272a] text-center">
+        AlphaResearch 10-Bagger Scanner · $300M–$5B Market Cap · 3-Check System ·
+        Not financial advice
+      </p>
+    </div>
+  );
+}

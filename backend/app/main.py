@@ -4,6 +4,7 @@ from app.routers import scan, analyze, watchlist, portfolio, journal, alerts
 from app.routers.portfolio_analysis import router as portfolio_router
 from app.routers.watchlist_analysis import router as watchlist_analysis_router
 from app.routers.ticker_info import router as ticker_info_router
+from app.routers.scan_10baggers import router as scan_10baggers_router
 import uvicorn
 
 app = FastAPI(
@@ -20,12 +21,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(scan.router,       prefix="/scan",       tags=["Scan"])
-app.include_router(analyze.router,    prefix="/analyze",    tags=["Analysis"])
-app.include_router(watchlist.router,  prefix="/watchlist",  tags=["Watchlist"])
-app.include_router(portfolio.router,  prefix="/portfolio",  tags=["Portfolio"])
-app.include_router(journal.router,    prefix="/journal",    tags=["Journal"])
-app.include_router(alerts.router,     prefix="/alerts",     tags=["Alerts"])
+app.include_router(scan.router,       prefix="/scan",           tags=["Scan"])
+app.include_router(scan_10baggers_router, prefix="/scan/10baggers", tags=["10-Baggers"])
+app.include_router(analyze.router,    prefix="/analyze",        tags=["Analysis"])
+app.include_router(watchlist.router,  prefix="/watchlist",      tags=["Watchlist"])
+app.include_router(portfolio.router,  prefix="/portfolio",      tags=["Portfolio"])
+app.include_router(journal.router,    prefix="/journal",        tags=["Journal"])
+app.include_router(alerts.router,     prefix="/alerts",         tags=["Alerts"])
 app.include_router(portfolio_router)
 app.include_router(watchlist_analysis_router)
 app.include_router(ticker_info_router)
