@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// AlphaResearch — 10-Baggers Scanner
-// Small-cap sweet spot: $300M–$5B · Institutional coverage gap
-// Same 3-Check methodology, dedicated small-cap universe
+// AlphaResearch — 10-Baggers Scanner v2
+// Small-cap sweet spot: $500M–$7B · 2-Check System
+// Growth Fundamentals + 89-Day MA Trend Filter
 // ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
@@ -12,7 +12,6 @@ import {
   KpiCard,
   ConvictionBar,
   CheckBadge,
-  StageTag,
   DataQualityBadge,
   ScanLoading,
   EmptyState,
@@ -65,8 +64,8 @@ function rsiColor(v: number) {
 }
 
 function mktCapColor(v: number) {
-  if (v >= 2e9) return "text-emerald-400";
-  if (v >= 1e9) return "text-amber-400";
+  if (v >= 3e9) return "text-emerald-400";
+  if (v >= 1.5e9) return "text-amber-400";
   return "text-blue-400";
 }
 
@@ -78,8 +77,8 @@ const COLUMNS = [
   { key: "price", label: "Price", align: "text-right" },
   { key: "chg", label: "Chg%", align: "text-right" },
   { key: "mktcap", label: "Mkt Cap", align: "text-right" },
-  { key: "fund", label: "Fund.", align: "text-center" },
-  { key: "tech", label: "Stage", align: "text-center" },
+  { key: "fund", label: "Growth", align: "text-center" },
+  { key: "tech", label: "89D MA", align: "text-center" },
   { key: "rsi", label: "RSI", align: "text-right" },
   { key: "entry", label: "Entry Zone", align: "text-right" },
   { key: "dq", label: "DQ", align: "text-center" },
@@ -88,7 +87,7 @@ const COLUMNS = [
 
 const SECTORS = [
   "All", "Technology", "Healthcare", "Industrials", "Consumer",
-  "Energy", "Financials", "Communication",
+  "Energy", "Financial", "Communication",
 ] as const;
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -100,10 +99,10 @@ export default function TenBaggersPage() {
   const [sortCol, setSortCol] = useState<string>("conviction");
   const [sortAsc, setSortAsc] = useState(false);
 
-  // Restore cached scan
+  // Restore cached scan from localStorage
   React.useEffect(() => {
     try {
-      const cached = localStorage.getItem("alpha_10baggers_v1");
+      const cached = localStorage.getItem("alpha_10baggers_v2");
       if (cached) setScanData(JSON.parse(cached));
     } catch {}
   }, []);
@@ -115,12 +114,12 @@ export default function TenBaggersPage() {
       const data = await scan10Baggers();
       setScanData(data);
       try {
-        localStorage.setItem("alpha_10baggers_v1", JSON.stringify(data));
+        localStorage.setItem("alpha_10baggers_v2", JSON.stringify(data));
       } catch {}
     } catch (e: any) {
       setError(
         e.message ||
-          "Scan failed — backend may be cold-starting on Render (~30s)"
+          "Scan failed — backend may be cold-starting on Render (~60s for small-cap scan)"
       );
     }
     setScanning(false);
@@ -154,7 +153,7 @@ export default function TenBaggersPage() {
     else { setSortCol(col); setSortAsc(false); }
   };
 
-  // ── KPI ────────────────────────────────────────────────────────────────
+  // ── KPIs ───────────────────────────────────────────────────────────────
   const highConv = stocks.filter((s) => s.conviction_score >= 8).length;
   const avgMktCap =
     stocks.length > 0
@@ -171,10 +170,10 @@ export default function TenBaggersPage() {
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-[18px] font-bold tracking-tight text-[#fafafa]">
-            10-<span className="text-amber-400">Baggers</span>
+            🎯 10-<span className="text-amber-400">Baggers</span>
           </h1>
           <p className="text-xs text-[#52525b] mt-0.5">
-            Small-Cap Sweet Spot · $300M–$5B Market Cap · Institutional Coverage Gap
+            $500M–$7B Sweet Spot · Growth Fundamentals + 89-Day MA Trend · Institutional Coverage Gap
           </p>
         </div>
 
@@ -205,12 +204,12 @@ export default function TenBaggersPage() {
           <KpiCard
             label="Universe Scanned"
             value={String(scanData.stocks_scanned)}
-            sub="$300M–$5B only"
+            sub="$500M–$7B gate applied"
           />
           <KpiCard
             label="Qualifying"
             value={String(scanData.qualifying_count)}
-            sub="Passed 3-Check"
+            sub="Passed 2-Check system"
             color="text-emerald-400"
           />
           <KpiCard
@@ -261,7 +260,7 @@ export default function TenBaggersPage() {
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-              <span className="text-[10px] text-[#52525b]">$300M–$5B enforced</span>
+              <span className="text-[10px] text-[#52525b]">$500M–$7B enforced</span>
             </div>
           </div>
         </div>
@@ -276,7 +275,7 @@ export default function TenBaggersPage() {
 
       {/* ── Loading ──────────────────────────────────────────────────────── */}
       {scanning && (
-        <ScanLoading label="⚡ Scanning 120+ small-cap stocks ($300M–$5B)…" />
+        <ScanLoading label="⚡ Scanning 130+ small-cap stocks · Fetching fundamentals + 89-day MA…" />
       )}
 
       {/* ── Pre-scan Empty State ─────────────────────────────────────────── */}
@@ -284,12 +283,12 @@ export default function TenBaggersPage() {
         <div className="bg-[#18181b] border border-[#27272a] rounded-xl p-12 space-y-6">
           <div className="text-center space-y-2">
             <p className="text-[#fafafa] text-sm font-semibold tracking-wider uppercase">
-              🎯 10-Bagger Discovery Engine
+              🎯 Multi-Bagger Discovery Engine
             </p>
             <p className="text-xs text-[#52525b] max-w-lg mx-auto">
-              Scans 120+ small-cap stocks in the $300M–$5B sweet spot — the range
-              where institutional coverage gaps create structural mispricings and
-              10x–20x return potential.
+              Scans 130+ small-cap stocks in the $500M–$7B sweet spot. 2-Check system:
+              Growth Fundamentals + 89-Day MA Trend Filter. No institutional/insider check —
+              these are under-the-radar names that Wall Street hasn't discovered yet.
             </p>
           </div>
 
@@ -297,65 +296,67 @@ export default function TenBaggersPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-3xl mx-auto">
             <div className="bg-[#09090b] border border-emerald-800/30 rounded-xl p-4 space-y-2">
               <p className="text-emerald-400 text-[10px] font-semibold tracking-widest">
-                🎯 SWEET SPOT: $300M–$5B
+                🎯 SWEET SPOT: $500M–$7B
               </p>
               <p className="text-[#a1a1aa] text-xs font-semibold">
                 Maximum Growth Runway
               </p>
               <p className="text-[#52525b] text-[10px] leading-relaxed">
-                A $500M company can realistically 10x to $5B. Enough institutional
-                quality, but small enough for explosive growth.
+                A $1B company can realistically 10x to $10B. Enough institutional quality
+                but small enough for explosive growth before Wall Street notices.
               </p>
             </div>
             <div className="bg-[#09090b] border border-rose-800/30 rounded-xl p-4 space-y-2">
               <p className="text-rose-400 text-[10px] font-semibold tracking-widest">
-                ❌ BELOW $300M
+                ❌ BELOW $500M
               </p>
               <p className="text-[#a1a1aa] text-xs font-semibold">
                 Micro-Cap Risk Zone
               </p>
               <p className="text-[#52525b] text-[10px] leading-relaxed">
-                Governance gaps, pump-and-dump risk, existential fragility. Filtered
-                out automatically.
+                Governance gaps, pump-and-dump fragility, audit risk,
+                limited regulatory oversight. Filtered out automatically.
               </p>
             </div>
             <div className="bg-[#09090b] border border-rose-800/30 rounded-xl p-4 space-y-2">
               <p className="text-rose-400 text-[10px] font-semibold tracking-widest">
-                ❌ ABOVE $5B
+                ❌ ABOVE $7B
               </p>
               <p className="text-[#a1a1aa] text-xs font-semibold">
                 Law of Large Numbers
               </p>
               <p className="text-[#52525b] text-[10px] leading-relaxed">
-                Hyper-efficient markets, thousands of analysts. A $20B company needs
-                to become $200B for 10x — mathematically rare.
+                Hyper-efficient markets, 30+ analysts tracking every move.
+                A $20B company needs $200B for 10x — mathematically rare.
               </p>
             </div>
           </div>
 
-          {/* 3-Check reminder */}
-          <div className="flex justify-center gap-px max-w-lg mx-auto">
-            {[
-              ["01", "Fundamentals", "Revenue · Margins · FCF · Balance Sheet"],
-              ["02", "Technicals", "Weinstein Stage · MA50/200 · RSI · Volume"],
-              ["03", "Smart Money", "13F · Form 4 Insider · STOCK Act"],
-            ].map(([num, title, desc]) => (
-              <div
-                key={num}
-                className="flex-1 p-3 bg-[#09090b] border border-[#27272a] text-left space-y-1"
-              >
-                <p className="text-[#FFB000] text-[10px] font-semibold tracking-widest">
-                  CHECK {num}
-                </p>
-                <p className="text-[#a1a1aa] text-[11px] font-semibold">{title}</p>
-                <p className="text-[#52525b] text-[9px]">{desc}</p>
-              </div>
-            ))}
+          {/* 2-Check system */}
+          <div className="flex justify-center gap-3 max-w-lg mx-auto">
+            <div className="flex-1 p-4 bg-[#09090b] border border-emerald-800/30 rounded-xl text-left space-y-1">
+              <p className="text-emerald-400 text-[10px] font-semibold tracking-widest">
+                CHECK 1 — GROWTH
+              </p>
+              <p className="text-[#a1a1aa] text-xs font-semibold">Fundamentals</p>
+              <p className="text-[#52525b] text-[10px]">
+                Revenue growth · Gross margins · FCF · Low debt · Profitability (bonus, not required)
+              </p>
+            </div>
+            <div className="flex-1 p-4 bg-[#09090b] border border-blue-800/30 rounded-xl text-left space-y-1">
+              <p className="text-blue-400 text-[10px] font-semibold tracking-widest">
+                CHECK 2 — TREND
+              </p>
+              <p className="text-[#a1a1aa] text-xs font-semibold">89-Day MA Filter</p>
+              <p className="text-[#52525b] text-[10px]">
+                Weekly close above 89-day SMA. One clean trend condition — above = uptrend, below = avoid.
+              </p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── Bloomberg-Spec Table ──────────────────────────────────────────── */}
+      {/* ── Results Table ────────────────────────────────────────────────── */}
       {!scanning && scanData && sorted.length > 0 && (
         <div className="w-full overflow-hidden rounded-lg border border-[#1E2530] bg-[#0C0F16]">
           <div className="overflow-x-auto">
@@ -422,14 +423,14 @@ export default function TenBaggersPage() {
                       {fmtMktCap(s.market_cap)}
                     </td>
 
-                    {/* Fundamental */}
+                    {/* Growth (Fundamental) */}
                     <td className="px-4 py-2.5 text-center">
-                      <CheckBadge pass={s.check1_pass} />
+                      <CheckBadge pass={s.check1_pass} label={s.check1_pass ? "GROWTH" : "WEAK"} />
                     </td>
 
-                    {/* Stage */}
+                    {/* 89D MA (Technical) */}
                     <td className="px-4 py-2.5 text-center">
-                      <StageTag stage={s.technical_stage} />
+                      <CheckBadge pass={s.check2_pass} label={s.check2_pass ? "ABOVE" : "BELOW"} />
                     </td>
 
                     {/* RSI */}
@@ -462,40 +463,46 @@ export default function TenBaggersPage() {
             </table>
           </div>
 
-          {/* Footer */}
+          {/* Footer Legend */}
           <div className="grid grid-cols-2 gap-6 border-t border-[#1E2530] bg-[#0A0D14] p-4 text-[11px] text-[#64748B]">
             <div className="space-y-1.5">
               <p className="font-semibold text-[#94a3b8] uppercase tracking-wider text-[10px]">
-                Market Cap Tiers
+                Conviction Tiers
               </p>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <div className="w-0.5 h-3 rounded-full bg-emerald-400" />
-                  <span>$2B–$5B — Early Mid-Cap, strongest fundamentals</span>
+                  <span>9–10 Maximum — Strong growth + confirmed uptrend</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-0.5 h-3 rounded-full bg-amber-400" />
-                  <span>$1B–$2B — Core Small-Cap, high growth potential</span>
+                  <span>7–8 High — Good fundamentals, above 89D MA</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-0.5 h-3 rounded-full bg-blue-400" />
-                  <span>$300M–$1B — Early Small-Cap, maximum runway</span>
+                  <span>5–6 Moderate — Qualifying but needs monitoring</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-0.5 h-3 rounded-full bg-rose-400" />
+                  <span>1–4 Low — Early stage, high risk</span>
                 </div>
               </div>
             </div>
             <div className="space-y-1.5">
               <p className="font-semibold text-[#94a3b8] uppercase tracking-wider text-[10px]">
-                10-Bagger Thesis
+                2-Check System
               </p>
-              <p className="text-[10px] leading-relaxed">
-                Companies below $5B sit in the institutional coverage gap — too small
-                for BlackRock/Vanguard to buy meaningfully, too few analysts covering them.
-                This creates structural mispricings where diligent research finds gems
-                before Wall Street notices.
-              </p>
-              <p className="text-[10px] text-[#3f3f46]">
-                Hard filter: &lt;$300M rejected (micro-cap risk) · &gt;$5B rejected (efficient markets)
-              </p>
+              <div className="space-y-1">
+                <p className="text-[10px]">
+                  <span className="text-emerald-400 font-semibold">GROWTH</span> — Revenue growth, gross margins, FCF, low debt. Profitability is a bonus, not a requirement. Scores growth companies fairly.
+                </p>
+                <p className="text-[10px]">
+                  <span className="text-blue-400 font-semibold">89D MA</span> — Weekly close above 89-day simple moving average. Clean trend filter — if the stock is in an uptrend, it passes.
+                </p>
+                <p className="text-[10px] text-[#3f3f46] mt-1">
+                  Market cap hard gate: &lt;$500M rejected (micro-cap risk) · &gt;$7B rejected (efficient markets)
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -504,14 +511,14 @@ export default function TenBaggersPage() {
       {/* ── No Results ───────────────────────────────────────────────────── */}
       {!scanning && scanData && sorted.length === 0 && (
         <EmptyState
-          title="No small-caps match all 3 checks"
-          subtitle="This is expected — the 3-Check filter is strict. Try adjusting sector filter or run a new scan."
+          title="No small-caps passed both checks"
+          subtitle="Try a different sector filter or run a new scan. The 2-Check system filters for quality + trend."
         />
       )}
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       <p className="text-[10px] text-[#27272a] text-center">
-        AlphaResearch 10-Bagger Scanner · $300M–$5B Market Cap · 3-Check System ·
+        AlphaResearch 10-Bagger Scanner · $500M–$7B · Growth + 89D MA Trend ·
         Not financial advice
       </p>
     </div>
