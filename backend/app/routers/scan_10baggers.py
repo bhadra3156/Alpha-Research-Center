@@ -227,7 +227,7 @@ async def run_10bagger_scan(request: ScanRequest):
                 mktcap = data.get("market_cap", 0) or 0
 
                 # ── MARKET CAP GATE ──────────────────────────────────────
-                if mktcap < MKTCAP_MIN or mktcap > MKTCAP_MAX:
+                if mktcap > 0 and (mktcap < MKTCAP_MIN or mktcap > MKTCAP_MAX):
                     rejected_mktcap += 1
                     return None
 
