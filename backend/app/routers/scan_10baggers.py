@@ -1,279 +1,250 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# AlphaResearch — 10-Baggers Scanner v5 (FMP Quote-Based)
-# Uses FMP batch quote endpoint (free tier) for REAL data:
-# market cap, PE, MA50, MA200, 52W range, volume
-# Then filters by market cap and scores by quality
+# AlphaResearch — 10-Baggers Scanner v6 (FINAL)
+# Uses yfinance .info directly — handles Yahoo auth internally
+# Returns REAL: market cap, revenue growth, margins, PE, sector
+# No data_fetcher (broken for fundamentals), no FMP (paid only)
 # ─────────────────────────────────────────────────────────────────────────────
 
 from fastapi import APIRouter
 from app.models.schemas import ScanRequest, ScanResponse, QualifyingStock
-import os
-import requests
+import yfinance as yf
 import uuid
 import time
+import asyncio
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 router = APIRouter()
 
-# ─── Config ───────────────────────────────────────────────────────────────────
-FMP_KEY = os.getenv("FMP_API_KEY", "")
-
-# Market cap range
+# ─── Market Cap Gate ──────────────────────────────────────────────────────────
 MKTCAP_MIN = 500_000_000     # $500M floor
-MKTCAP_MAX = 10_000_000_000  # $10B ceiling
+MKTCAP_MAX = 15_000_000_000  # $15B ceiling
 
 # ─── Universe ────────────────────────────────────────────────────────────────
-# Curated small/mid-cap candidates across sectors
-# FMP quote endpoint gives us REAL data for each
-# ─────────────────────────────────────────────────────────────────────────────
 TENBAGGER_UNIVERSE = [
     # Tech / Software
-    "DOCN","BRZE","SEMR","BIGC","JAMF","DV","INTA","QTWO","ALRM","GENI",
+    "DOCN","BRZE","SEMR","JAMF","DV","INTA","QTWO","ALRM","GENI",
     "CFLT","ASAN","MNDY","SMAR","ZI","PAYO","FLYW","VERX","CWAN","RELY",
-    "ACIW","PRGS","BMBL","INST","SQSP","CARG","PUBM","MGNI","CRTO","FRSH",
-    "APP","DUOL","TOST","HUBS",
+    "ACIW","PRGS","INST","SQSP","CARG","PUBM","MGNI","CRTO","FRSH",
+    "DUOL","TOST",
     # Cybersecurity
-    "TENB","VRNS","QLYS","RPD","NSSC","RDWR","FSLY","EVBG",
+    "TENB","VRNS","QLYS","RPD","NSSC",
     # Healthcare / Biotech
-    "GDRX","HIMS","INSP","TMDX","CERT","SDGR","RXRX","NVCR","PGNY","GKOS",
-    "NVST","RVMD","PCVX","KRYS","IMVT","ACLX","HALO","AXSM","CORT","SUPN",
-    "GMED","OMCL","PRCT","TGTX","NARI","EXAS","VEEV","DXCM","PODD",
+    "GDRX","HIMS","INSP","TMDX","CERT","SDGR","NVCR","PGNY","GKOS",
+    "NVST","RVMD","PCVX","KRYS","HALO","AXSM","CORT","SUPN","GMED",
+    "OMCL","PRCT","TGTX","NARI",
     # Industrials / Defence
     "KTOS","RKLB","ATKR","ROAD","PRIM","GMS","STRL","SPXC","ESAB","APOG",
-    "WFRD","XPEL","UFPT","CSWI","MATX","POWL","TDW","SKYW","JOBY","ASTS",
-    "BWXT","CW","AZEK","AAON","LNTH","PIPR",
+    "WFRD","XPEL","UFPT","CSWI","MATX","POWL","TDW","SKYW","BWXT",
+    "AZEK","AAON","LNTH",
     # Consumer / Retail
-    "SHAK","BROS","SG","DNUT","WRBY","FIGS","YETI","HELE","CAVA","ELF",
-    "CELH","ONON","BIRK","WING","TXRH","PTLO","JACK","PLAY","DKS",
+    "SHAK","BROS","SG","WRBY","YETI","CAVA","ELF","CELH","ONON","BIRK",
+    "WING","TXRH","DKS",
     # Energy
-    "GPOR","CNX","AROC","AMRC","BE","CHPT","RUN","NOVA","CEIX","ARCH",
-    "TALO","SM","MTDR","PTEN","RRC",
+    "GPOR","CNX","AROC","AMRC","BE","CEIX","ARCH","SM","MTDR","RRC",
     # Fintech
-    "UPST","LC","STEP","TREE","COOP","OPEN","ACVA","SOFI","AFRM","HOOD",
-    "VIRT","MKTX","ESNT","NMIH",
+    "UPST","LC","STEP","SOFI","AFRM","HOOD","VIRT","MKTX","ESNT","NMIH",
     # AI / Semiconductors
-    "BBAI","SOUN","IREN","AMBA","CEVA","AEHR","ONTO","ACLS","RMBS","DIOD",
-    "ALGM","WOLF","SLAB","SITM","POWI","MPWR","PLTR","AI","PATH","SNOW",
-    "NET","CRWD","DDOG","ZS",
+    "SOUN","IREN","AMBA","CEVA","AEHR","ONTO","ACLS","RMBS","DIOD",
+    "ALGM","WOLF","SLAB","SITM","POWI",
 ]
 
 TENBAGGER_UNIVERSE = list(dict.fromkeys(TENBAGGER_UNIVERSE))
 
 
-# ─── FMP Batch Quote Fetch ────────────────────────────────────────────────────
-def fmp_batch_quote(symbols: List[str]) -> Dict[str, Dict]:
+# ─── Single Stock Fetch via yfinance .info ────────────────────────────────────
+def get_stock_info(ticker: str) -> Optional[Dict]:
     """
-    Fetch real-time quotes from FMP for multiple tickers.
-    Returns: price, marketCap, changesPercentage, pe, eps, yearHigh, yearLow,
-    priceAvg50, priceAvg200, volume, avgVolume, exchange, name, etc.
-    Batch: up to 50 tickers per call.
+    Uses yfinance .info which handles Yahoo auth (crumb/cookie) internally.
+    ONE call per stock. Returns everything we need.
     """
-    quotes = {}
+    try:
+        t = yf.Ticker(ticker)
+        info = t.info
 
-    for i in range(0, len(symbols), 50):
-        batch = symbols[i:i+50]
-        tickers_str = ",".join(batch)
+        if not info or not isinstance(info, dict):
+            print(f"[10B] SKIP {ticker}: no info returned")
+            return None
 
-        # Try stable API first, then v3 fallback
-        urls = [
-            f"https://financialmodelingprep.com/stable/batch-quote?symbols={tickers_str}&apikey={FMP_KEY}",
-            f"https://financialmodelingprep.com/api/v3/quote/{tickers_str}?apikey={FMP_KEY}",
-        ]
+        price = info.get("currentPrice") or info.get("regularMarketPrice") or 0
+        if price == 0:
+            print(f"[10B] SKIP {ticker}: price=0")
+            return None
 
-        for url in urls:
-            try:
-                resp = requests.get(url, timeout=30)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if isinstance(data, list) and len(data) > 0:
-                        for item in data:
-                            sym = item.get("symbol", "")
-                            if sym:
-                                quotes[sym] = item
-                        print(f"[10-BAGGERS] FMP quote batch: got {len(data)} quotes from {url[:60]}...")
-                        break  # Success, skip fallback URL
-                    else:
-                        print(f"[10-BAGGERS] FMP quote empty response from {url[:60]}")
-                else:
-                    print(f"[10-BAGGERS] FMP quote {resp.status_code} from {url[:60]}")
-            except Exception as e:
-                print(f"[10-BAGGERS] FMP quote error: {e}")
+        mktcap = info.get("marketCap") or 0
+        rev_growth = info.get("revenueGrowth") or 0           # decimal: 0.25 = 25%
+        gross_margins = info.get("grossMargins") or 0          # decimal
+        profit_margins = info.get("profitMargins") or 0        # decimal
+        pe = info.get("trailingPE") or info.get("forwardPE") or 0
+        eps = info.get("trailingEps") or 0
+        total_revenue = info.get("totalRevenue") or 0
+        free_cashflow = info.get("freeCashflow") or 0
+        debt_to_equity = info.get("debtToEquity") or 0
+        sector = info.get("sector") or ""
+        industry = info.get("industry") or ""
+        name = info.get("shortName") or info.get("longName") or ticker
+        ma50 = info.get("fiftyDayAverage") or 0
+        ma200 = info.get("twoHundredDayAverage") or 0
+        w52h = info.get("fiftyTwoWeekHigh") or 0
+        w52l = info.get("fiftyTwoWeekLow") or 0
+        beta = info.get("beta") or 0
+        vol = info.get("averageVolume") or 0
+        chg_pct = info.get("regularMarketChangePercent") or 0
 
-    return quotes
+        print(f"[10B] OK {ticker}: ${price:.2f} mktcap=${mktcap/1e9:.1f}B rev={rev_growth*100:.0f}% margin={profit_margins*100:.0f}% PE={pe:.0f} sector={sector[:15]}")
+
+        return {
+            "ticker": ticker,
+            "name": name,
+            "price": price,
+            "marketCap": mktcap,
+            "revenueGrowth": rev_growth,
+            "grossMargins": gross_margins,
+            "profitMargins": profit_margins,
+            "pe": pe,
+            "eps": eps,
+            "totalRevenue": total_revenue,
+            "freeCashflow": free_cashflow,
+            "debtToEquity": debt_to_equity,
+            "sector": sector,
+            "industry": industry,
+            "ma50": ma50,
+            "ma200": ma200,
+            "w52h": w52h,
+            "w52l": w52l,
+            "beta": beta,
+            "volume": vol,
+            "changePct": chg_pct,
+        }
+    except Exception as e:
+        print(f"[10B] ERROR {ticker}: {e}")
+        return None
 
 
 # ─── Scoring ──────────────────────────────────────────────────────────────────
-def score_stock(q: Dict) -> int:
-    """
-    Score 1-10 based on FMP quote data.
-    Uses: marketCap, pe, changesPercentage, priceAvg50, priceAvg200, volume
-    """
+def score_stock(d: Dict) -> int:
     score = 1
-    price = q.get("price", 0) or 0
-    mktcap = q.get("marketCap", 0) or 0
-    pe = q.get("pe", 0) or 0
-    eps = q.get("eps", 0) or 0
-    chg = q.get("changesPercentage", 0) or 0
-    ma50 = q.get("priceAvg50", 0) or 0
-    ma200 = q.get("priceAvg200", 0) or 0
-    volume = q.get("volume", 0) or q.get("avgVolume", 0) or 0
-    year_high = q.get("yearHigh", 0) or 0
-    year_low = q.get("yearLow", 0) or 0
+    rev = d.get("revenueGrowth", 0) or 0
+    gm = d.get("grossMargins", 0) or 0
+    pm = d.get("profitMargins", 0) or 0
+    mktcap = d.get("marketCap", 0) or 0
+    pe = d.get("pe", 0) or 0
+    fcf = d.get("freeCashflow", 0) or 0
+    dte = d.get("debtToEquity", 0) or 0
+    price = d.get("price", 0) or 0
+    ma50 = d.get("ma50", 0) or 0
+    ma200 = d.get("ma200", 0) or 0
 
-    # Market cap runway (smaller = more 10x potential) — max +3
-    if 0 < mktcap < 2e9:
-        score += 3
-    elif mktcap < 5e9:
-        score += 2
-    elif mktcap < 8e9:
+    # Revenue growth (max +3)
+    if rev > 0.30: score += 3
+    elif rev > 0.15: score += 2
+    elif rev > 0.05: score += 1
+
+    # Gross margins (max +1)
+    if gm > 0.50: score += 1
+    elif gm > 0.30: score += 0.5
+
+    # Market cap runway (max +2)
+    if 0 < mktcap < 3e9: score += 2
+    elif mktcap < 7e9: score += 1
+
+    # Trend: above MA50 + MA200 (max +1)
+    if ma50 > 0 and ma200 > 0 and price > ma50 > ma200:
         score += 1
 
-    # Price above MA50 (uptrend) — max +1
-    if ma50 > 0 and price > ma50:
-        score += 1
+    # Profitable (max +1)
+    if pm > 0.05: score += 1
 
-    # Price above MA200 (long-term uptrend) — max +1
-    if ma200 > 0 and price > ma200:
-        score += 1
+    # FCF positive (max +0.5)
+    if fcf > 0: score += 0.5
 
-    # Golden cross (MA50 > MA200) — max +1
-    if ma50 > 0 and ma200 > 0 and ma50 > ma200:
-        score += 1
-
-    # Positive earnings (profitable) — max +1
-    if eps > 0:
-        score += 1
-
-    # Reasonable PE (not over-valued) — max +1
-    if pe > 0 and pe < 50:
-        score += 1
-
-    # 52-week range position (closer to high = momentum) — max +1
-    if year_high > 0 and year_low > 0 and year_high != year_low:
-        range_pct = (price - year_low) / (year_high - year_low)
-        if range_pct > 0.6:
-            score += 1
-
-    return min(max(score, 1), 10)
+    return min(max(int(round(score)), 1), 10)
 
 
 # ─── Scanner Endpoint ────────────────────────────────────────────────────────
 @router.post("/", response_model=ScanResponse)
 async def run_10bagger_scan(request: ScanRequest):
-    """
-    10-Bagger Scanner v5 — FMP Quote-Based
-    1. Batch quotes from FMP for ~150 stocks (3 API calls)
-    2. Filter by market cap $500M-$10B
-    3. Score by quality + momentum + runway
-    4. Return sorted results with REAL data
-    """
     start = time.time()
     scan_id = str(uuid.uuid4())
 
-    if not FMP_KEY:
-        print("[10-BAGGERS] ERROR: FMP_API_KEY not set!")
-        return ScanResponse(
-            scan_id=scan_id, scan_date=datetime.now().isoformat(),
-            market="US", stocks_scanned=0, qualifying_count=0,
-            qualifying_stocks=[], scan_duration_ms=0,
-        )
-
     symbols = list(TENBAGGER_UNIVERSE)
-    print(f"[10-BAGGERS v5] Fetching FMP quotes for {len(symbols)} stocks...")
+    print(f"[10B v6] Starting scan of {len(symbols)} stocks via yfinance .info")
 
-    # ── Step 1: Get real quotes ──────────────────────────────────────────
-    quotes = fmp_batch_quote(symbols)
-    print(f"[10-BAGGERS v5] Got {len(quotes)} quotes with real data")
+    results: List[Dict] = []
+    sem = asyncio.Semaphore(4)  # Low concurrency to avoid Yahoo rate limits
 
-    if not quotes:
-        print("[10-BAGGERS v5] No quotes returned — FMP API may be down or key invalid")
-        return ScanResponse(
-            scan_id=scan_id, scan_date=datetime.now().isoformat(),
-            market="US", stocks_scanned=0, qualifying_count=0,
-            qualifying_stocks=[], scan_duration_ms=round((time.time()-start)*1000, 1),
-        )
+    async def fetch_one(ticker: str):
+        async with sem:
+            loop = asyncio.get_event_loop()
+            data = await loop.run_in_executor(None, get_stock_info, ticker)
+            if data:
+                results.append(data)
 
-    # ── Step 2: Filter by market cap and build results ───────────────────
+    # Process in batches of 20 with small delays
+    for i in range(0, len(symbols), 20):
+        batch = symbols[i:i+20]
+        tasks = [fetch_one(t) for t in batch]
+        await asyncio.gather(*tasks)
+        if i + 20 < len(symbols):
+            await asyncio.sleep(0.5)  # Brief pause between batches
+
+    print(f"[10B v6] Got data for {len(results)} stocks")
+
+    # Filter by market cap and build qualifying list
     qualifying: List[QualifyingStock] = []
-    total_scanned = len(quotes)
-    rejected_mktcap = 0
+    rejected = 0
 
-    for sym, q in quotes.items():
-        price = q.get("price", 0) or 0
-        mktcap = q.get("marketCap", 0) or 0
+    for d in results:
+        mktcap = d.get("marketCap", 0) or 0
+        price = d.get("price", 0) or 0
 
-        if price <= 0:
-            continue
-
-        # Market cap filter (skip if unknown)
+        # Market cap gate (skip if unknown)
         if mktcap > 0 and (mktcap < MKTCAP_MIN or mktcap > MKTCAP_MAX):
-            rejected_mktcap += 1
+            rejected += 1
             continue
 
-        # Score
-        conviction = score_stock(q)
+        conviction = score_stock(d)
 
-        # Extract data
-        company = q.get("name", "") or sym
-        chg_pct = q.get("changesPercentage", 0) or 0
-        ma50 = q.get("priceAvg50", 0) or 0
-        ma200 = q.get("priceAvg200", 0) or 0
-        pe = q.get("pe", 0) or 0
-        eps = q.get("eps", 0) or 0
-        vol = q.get("avgVolume", 0) or q.get("volume", 0) or 0
-        year_high = q.get("yearHigh", 0) or 0
-        year_low = q.get("yearLow", 0) or 0
-        exchange = q.get("exchange", "") or ""
-
-        # Trend label
+        # Build display fields
+        ma50 = d.get("ma50", 0) or 0
+        ma200 = d.get("ma200", 0) or 0
         golden_cross = ma50 > ma200 if ma50 > 0 and ma200 > 0 else False
+
         if ma50 > 0 and ma200 > 0:
-            if price > ma50 > ma200:
-                stage = "Uptrend — Above MA50 & MA200"
-            elif price > ma200:
-                stage = "Recovery — Above MA200"
-            elif price > ma50:
-                stage = "Bouncing — Above MA50"
-            else:
-                stage = "Downtrend — Below MAs"
+            if price > ma50 > ma200: stage = "Uptrend"
+            elif price > ma200: stage = "Recovery"
+            elif price > ma50: stage = "Bounce"
+            else: stage = "Downtrend"
         else:
             stage = "N/A"
 
-        # Data quality
-        if mktcap > 3e9 and pe > 0:
-            dq = "HIGH"
-        elif mktcap > 1e9:
-            dq = "MEDIUM"
-        else:
-            dq = "LOW"
+        rev = (d.get("revenueGrowth", 0) or 0)
+        pm = (d.get("profitMargins", 0) or 0)
+        gm = (d.get("grossMargins", 0) or 0)
+        pe = d.get("pe", 0) or 0
 
-        # Fundamental verdict
-        if eps > 0 and pe > 0 and pe < 40:
-            verdict = f"Profitable · PE {pe:.0f} · EPS ${eps:.2f}"
-        elif eps > 0:
-            verdict = f"Profitable · EPS ${eps:.2f}"
+        if rev > 0.20 and gm > 0.40:
+            verdict = f"HIGH Growth +{rev*100:.0f}% · GM {gm*100:.0f}%"
+        elif rev > 0.10:
+            verdict = f"Growth +{rev*100:.0f}%"
+        elif pm > 0.10:
+            verdict = f"Profitable · Margin {pm*100:.0f}%"
         else:
-            verdict = "Pre-profitable · Growth phase"
+            verdict = "Early stage"
 
-        # Entry zone
+        dq = "HIGH" if mktcap > 5e9 else ("MEDIUM" if mktcap > 2e9 else "LOW")
+
         entry_zone = f"${price*0.95:.2f} - ${price*1.02:.2f}" if price > 5 else "N/A"
 
-        # RSI estimate from 52-week range position
-        rsi_est = 50.0
-        if year_high > 0 and year_low > 0 and year_high != year_low:
-            rsi_est = ((price - year_low) / (year_high - year_low)) * 100
-            rsi_est = max(10, min(90, rsi_est))
-
         qualifying.append(QualifyingStock(
-            ticker=sym,
-            company_name=company,
+            ticker=d["ticker"],
+            company_name=d["name"],
             market="US",
             price=price,
             market_cap=mktcap,
-            change_pct=chg_pct,
-            check1_pass=eps > 0,       # Profitable = fundamental pass
-            check2_pass=price > ma50 if ma50 > 0 else True,  # Above MA50 = technical pass
+            change_pct=d.get("changePct", 0) or 0,
+            check1_pass=rev > 0.05 or pm > 0,
+            check2_pass=price > ma50 if ma50 > 0 else True,
             check3_pass=True,
             fundamental_verdict=verdict,
             technical_stage=stage,
@@ -281,30 +252,29 @@ async def run_10bagger_scan(request: ScanRequest):
             conviction_score=conviction,
             data_quality=dq,
             entry_zone=entry_zone,
-            rsi14=rsi_est,
+            rsi14=50,
             ma50=ma50,
             ma200=ma200,
             golden_cross=golden_cross,
-            week52_high=year_high,
-            week52_low=year_low,
+            week52_high=d.get("w52h", 0) or 0,
+            week52_low=d.get("w52l", 0) or 0,
             range_pct=0,
-            revenue_growth=0,
-            net_margin=0,
+            revenue_growth=rev,
+            net_margin=pm,
             pe_ratio=pe,
-            sector=exchange,  # Using exchange as sector since quote doesn't return sector
+            sector=d.get("sector", ""),
         ))
 
-    # Sort by conviction
     qualifying.sort(key=lambda x: x.conviction_score, reverse=True)
-
     duration = (time.time() - start) * 1000
-    print(f"[10-BAGGERS v5] COMPLETE: {total_scanned} quoted | {rejected_mktcap} rejected (mktcap) | {len(qualifying)} QUALIFIED | {duration/1000:.1f}s")
+
+    print(f"[10B v6] DONE: {len(results)} fetched | {rejected} rejected (mktcap) | {len(qualifying)} QUALIFIED | {duration/1000:.1f}s")
 
     return ScanResponse(
         scan_id=scan_id,
         scan_date=datetime.now().isoformat(),
         market="US",
-        stocks_scanned=total_scanned,
+        stocks_scanned=len(results),
         qualifying_count=len(qualifying),
         qualifying_stocks=qualifying,
         scan_duration_ms=round(duration, 1),
