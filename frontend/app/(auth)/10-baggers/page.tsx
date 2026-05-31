@@ -22,7 +22,7 @@ const API =
   "https://alpha-research-center-backend.onrender.com";
 
 async function scan10Baggers(): Promise<ScanResponse> {
-  const res = await fetch(`${API}/10baggers/`, {
+  const res = await fetch(`${API}/scan/10baggers/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ market: "US", notify_telegram: false }),
