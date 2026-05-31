@@ -231,11 +231,8 @@ async def run_10bagger_scan(request: ScanRequest):
                     rejected_mktcap += 1
                     return None
 
-                # ── GROWTH FUNDAMENTALS SCORING ──────────────────────────
+                # ── GROWTH FUNDAMENTALS SCORING (rank only, no rejection) ─
                 passed, fund_details, conviction = score_fundamentals(data)
-                if not passed:
-                    rejected_fundamentals += 1
-                    return None
 
                 # ── Data quality ─────────────────────────────────────────
                 if mktcap > 10e9:
