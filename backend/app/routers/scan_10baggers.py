@@ -1,316 +1,352 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# AlphaResearch — 10-Baggers Scanner v3
-# Multi-bagger discovery: $1B–$25B · Growth Fundamentals Only
-# Uses proven data_fetcher (same as Dashboard) — no custom yfinance
+# AlphaResearch — 10-Baggers Scanner v4 (FMP-Powered)
+# Scans ENTIRE US market via Financial Modeling Prep API
+# Real market cap, real sector data, real financial metrics
+# No hand-picked universe — pure data-driven discovery
 # ─────────────────────────────────────────────────────────────────────────────
 
 from fastapi import APIRouter
 from app.models.schemas import ScanRequest, ScanResponse, QualifyingStock
-from app.services.data_fetcher import data_fetcher
+import os
+import requests
 import uuid
 import time
-import asyncio
 from datetime import datetime
-from typing import List, Dict, Tuple
+from typing import List, Dict
 
 router = APIRouter()
 
-# ─── Market Cap Gate ──────────────────────────────────────────────────────────
-MKTCAP_MIN = 1_000_000_000     # $1B floor
-MKTCAP_MAX = 25_000_000_000    # $25B ceiling
+# ─── Config ───────────────────────────────────────────────────────────────────
+FMP_KEY = os.getenv("FMP_API_KEY", "")
+FMP_BASE = "https://financialmodelingprep.com/api/v3"
 
-# ─── Small/Mid-Cap Universe ──────────────────────────────────────────────────
-TENBAGGER_UNIVERSE = [
-    # ── Technology / Software ─────────────────────────────────────────────
-    "DOCN", "BRZE", "SEMR", "BIGC", "JAMF", "DV", "INTA", "QTWO",
-    "ALRM", "GENI", "CFLT", "ASAN", "MNDY", "SMAR", "ZI", "PAYO",
-    "FLYW", "VERX", "CWAN", "RELY", "ACIW", "PRGS", "BMBL", "INST",
-    "SQSP", "CARG", "PUBM", "MGNI", "CRTO", "MTTR", "FRSH", "WEAV",
-    "APP", "DUOL", "TOST", "HUBS",
-
-    # ── Cybersecurity / Infrastructure ────────────────────────────────────
-    "TENB", "VRNS", "QLYS", "RPD", "NSSC", "RDWR", "FSLY", "EVBG",
-
-    # ── Healthcare / Biotech / MedTech ────────────────────────────────────
-    "GDRX", "HIMS", "INSP", "TMDX", "CERT", "SDGR", "RXRX", "NVCR",
-    "PGNY", "GKOS", "NVST", "RVMD", "PCVX", "KRYS", "IMVT", "ACLX",
-    "HALO", "AXSM", "CORT", "SUPN", "GMED", "OMCL", "PRCT", "TGTX",
-    "NARI", "EXAS", "VEEV", "DXCM", "PODD",
-
-    # ── Industrials / Defence / Aerospace ─────────────────────────────────
-    "KTOS", "RKLB", "ATKR", "ROAD", "PRIM", "GMS", "STRL", "SPXC",
-    "ESAB", "APOG", "WFRD", "XPEL", "UFPT", "CSWI", "MATX", "POWL",
-    "TDW", "SKYW", "JOBY", "ASTS", "BWXT", "CW", "AZEK", "AAON",
-    "LNTH", "PIPR",
-
-    # ── Consumer / Retail / DTC ───────────────────────────────────────────
-    "SHAK", "BROS", "SG", "DNUT", "WRBY", "FIGS", "YETI", "HELE",
-    "CAVA", "ELF", "CELH", "ONON", "BIRK", "DUOL", "LULU",
-    "DKS", "WING", "TXRH", "PTLO", "JACK", "PLAY",
-
-    # ── Energy / Resources ────────────────────────────────────────────────
-    "GPOR", "CNX", "AROC", "AMRC", "BE", "CHPT", "RUN", "NOVA",
-    "CEIX", "ARCH", "TALO", "SM", "MTDR", "PTEN", "RRC",
-
-    # ── Financials / Fintech ──────────────────────────────────────────────
-    "UPST", "LC", "STEP", "TREE", "COOP", "OPEN", "ACVA", "SOFI",
-    "AFRM", "HOOD", "VIRT", "PIPR", "MKTX", "ESNT", "NMIH",
-
-    # ── AI / Semiconductors / Frontier ────────────────────────────────────
-    "BBAI", "SOUN", "IREN", "AMBA", "CEVA", "AEHR", "ONTO", "ACLS",
-    "RMBS", "DIOD", "ALGM", "WOLF", "SLAB", "SITM", "POWI", "MPWR",
-    "PLTR", "AI", "PATH", "SNOW", "NET", "CRWD", "DDOG", "ZS",
-]
-
-# Deduplicate
-TENBAGGER_UNIVERSE = list(dict.fromkeys(TENBAGGER_UNIVERSE))
+# Market cap range
+MKTCAP_MIN = 500_000_000     # $500M floor
+MKTCAP_MAX = 10_000_000_000  # $10B ceiling
 
 
-# ─── Growth Fundamental Scoring ──────────────────────────────────────────────
-def score_fundamentals(data: Dict) -> Tuple[bool, Dict, int]:
+# ─── FMP Data Fetching ────────────────────────────────────────────────────────
+def fmp_screener() -> List[Dict]:
     """
-    Growth-focused scoring for multi-bagger candidates.
-    Uses fields from the proven data_fetcher.
-    Returns: (passed, details_dict, conviction_score)
+    ONE API call to FMP Stock Screener.
+    Filters the entire US market (~5000 stocks) down to candidates.
+    Returns stocks with: symbol, companyName, marketCap, sector, industry,
+    price, volume, beta, exchange, country.
     """
-    score = 0.0
-    details = {}
+    url = f"{FMP_BASE}/stock-screener"
+    params = {
+        "marketCapMoreThan": MKTCAP_MIN,
+        "marketCapLowerThan": MKTCAP_MAX,
+        "priceMoreThan": 5,
+        "volumeMoreThan": 100000,
+        "exchange": "NYSE,NASDAQ",
+        "country": "US",
+        "isActivelyTrading": True,
+        "isEtf": False,
+        "isFund": False,
+        "limit": 1000,
+        "apikey": FMP_KEY,
+    }
+    try:
+        resp = requests.get(url, params=params, timeout=30)
+        if resp.status_code != 200:
+            print(f"[10-BAGGERS] FMP screener error: {resp.status_code} {resp.text[:200]}")
+            return []
+        data = resp.json()
+        if isinstance(data, list):
+            return data
+        print(f"[10-BAGGERS] FMP unexpected response: {str(data)[:200]}")
+        return []
+    except Exception as e:
+        print(f"[10-BAGGERS] FMP screener exception: {e}")
+        return []
 
-    rev_growth = data.get("revenue_growth", 0) or 0      # decimal or %
-    # Normalize: if value looks like a decimal (< 5), convert to %
-    if -5 < rev_growth < 5 and rev_growth != 0:
-        rev_growth = rev_growth * 100
 
-    net_margin = data.get("net_margin", 0) or 0
-    if -5 < net_margin < 5 and net_margin != 0:
-        net_margin = net_margin * 100
+def fmp_batch_profiles(symbols: List[str]) -> Dict[str, Dict]:
+    """
+    Batch profile fetch — up to 50 tickers per call.
+    Returns richer data: price, changes, changesPercentage, mktCap, sector, etc.
+    """
+    profiles = {}
+    # Split into batches of 50
+    for i in range(0, len(symbols), 50):
+        batch = symbols[i:i+50]
+        tickers_str = ",".join(batch)
+        url = f"{FMP_BASE}/profile/{tickers_str}"
+        try:
+            resp = requests.get(url, params={"apikey": FMP_KEY}, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list):
+                    for item in data:
+                        sym = item.get("symbol", "")
+                        if sym:
+                            profiles[sym] = item
+        except Exception as e:
+            print(f"[10-BAGGERS] FMP profile batch error: {e}")
+    return profiles
 
-    pe_ratio = data.get("pe_ratio", 0) or 0
-    mktcap = data.get("market_cap", 0) or 0
-    price = data.get("current_price", 0) or 0
 
-    # 1. Revenue Growth (most important — max 2.0)
-    if rev_growth > 30:
-        score += 2.0
-        details["revenue_growth"] = f"+{rev_growth:.0f}% — Explosive"
-    elif rev_growth > 15:
+def fmp_batch_ratios(symbols: List[str]) -> Dict[str, Dict]:
+    """
+    Fetch TTM financial ratios for multiple stocks.
+    Returns: grossProfitMargin, netProfitMargin, debtEquityRatio, PE, etc.
+    One call per stock (FMP doesn't support batch ratios).
+    Limited to top 50 to conserve API calls.
+    """
+    ratios = {}
+    for sym in symbols[:50]:  # Cap at 50 to stay within free tier
+        try:
+            url = f"{FMP_BASE}/ratios-ttm/{sym}"
+            resp = requests.get(url, params={"apikey": FMP_KEY}, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list) and len(data) > 0:
+                    ratios[sym] = data[0]
+        except Exception as e:
+            pass
+    return ratios
+
+
+def fmp_batch_growth(symbols: List[str]) -> Dict[str, Dict]:
+    """
+    Fetch revenue/income growth for multiple stocks.
+    One call per stock. Limited to top 50.
+    """
+    growth = {}
+    for sym in symbols[:50]:
+        try:
+            url = f"{FMP_BASE}/income-statement-growth/{sym}"
+            resp = requests.get(url, params={"apikey": FMP_KEY, "period": "annual", "limit": 1}, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list) and len(data) > 0:
+                    growth[sym] = data[0]
+        except Exception as e:
+            pass
+    return growth
+
+
+# ─── Scoring ──────────────────────────────────────────────────────────────────
+def score_stock(screener_data: Dict, profile: Dict, ratios: Dict, growth: Dict) -> int:
+    """
+    Multi-bagger conviction scoring using real FMP data.
+    Score 1-10 based on growth, quality, and runway.
+    """
+    score = 1
+
+    mktcap = screener_data.get("marketCap", 0) or profile.get("mktCap", 0) or 0
+
+    # ── Revenue Growth (max +3) ──────────────────────────────────────────
+    rev_growth = growth.get("growthRevenue", 0) or 0
+    if rev_growth > 0.30:
+        score += 3
+    elif rev_growth > 0.15:
+        score += 2
+    elif rev_growth > 0.05:
+        score += 1
+
+    # ── Gross Margin (max +2) ────────────────────────────────────────────
+    gross_margin = ratios.get("grossProfitMarginTTM", 0) or 0
+    if gross_margin > 0.60:
+        score += 2
+    elif gross_margin > 0.40:
         score += 1.5
-        details["revenue_growth"] = f"+{rev_growth:.0f}% — Strong"
-    elif rev_growth > 5:
-        score += 1.0
-        details["revenue_growth"] = f"+{rev_growth:.0f}% — Moderate"
-    elif rev_growth > 0:
+    elif gross_margin > 0.25:
+        score += 1
+
+    # ── Net Margin (max +1) ──────────────────────────────────────────────
+    net_margin = ratios.get("netProfitMarginTTM", 0) or 0
+    if net_margin > 0.15:
+        score += 1
+    elif net_margin > 0.05:
         score += 0.5
-        details["revenue_growth"] = f"+{rev_growth:.0f}% — Slow"
-    else:
-        details["revenue_growth"] = f"{rev_growth:.0f}% — Declining"
 
-    # 2. Net Margin (bonus, not required — max 1.0)
-    if net_margin > 15:
-        score += 1.0
-        details["net_margin"] = f"{net_margin:.0f}% — Highly profitable"
-    elif net_margin > 5:
-        score += 0.75
-        details["net_margin"] = f"{net_margin:.0f}% — Profitable"
-    elif net_margin > 0:
+    # ── Market Cap Runway (max +2) ───────────────────────────────────────
+    if mktcap < 2e9:
+        score += 2   # Maximum 10x runway
+    elif mktcap < 5e9:
+        score += 1.5
+    elif mktcap < 8e9:
+        score += 1
+
+    # ── Low Debt (max +1) ────────────────────────────────────────────────
+    dte = ratios.get("debtEquityRatioTTM", 999) or 999
+    if dte < 0.3:
+        score += 1
+    elif dte < 0.8:
         score += 0.5
-        details["net_margin"] = f"{net_margin:.0f}% — Marginally profitable"
-    else:
-        score += 0.25  # Give some credit — many growth companies burn cash
-        details["net_margin"] = f"{net_margin:.0f}% — Pre-profitable (growth phase)"
 
-    # 3. Valuation sanity (max 0.5)
-    if pe_ratio > 0 and pe_ratio < 60:
-        score += 0.5
-        details["valuation"] = f"PE {pe_ratio:.0f} — Reasonable"
-    elif pe_ratio > 0:
-        score += 0.25
-        details["valuation"] = f"PE {pe_ratio:.0f} — Premium"
-    else:
-        score += 0.25  # Negative PE = pre-profitable, not necessarily bad
-        details["valuation"] = "Pre-earnings — Growth phase"
-
-    # 4. Price above $5 (not a penny stock — max 0.5)
-    if price >= 10:
-        score += 0.5
-        details["price_quality"] = f"${price:.2f} — Institutional grade"
-    elif price >= 5:
-        score += 0.25
-        details["price_quality"] = f"${price:.2f} — Acceptable"
-    else:
-        details["price_quality"] = f"${price:.2f} — Low price risk"
-
-    # Quality classification
-    if score >= 3.0:
-        quality = "HIGH"
-    elif score >= 2.0:
-        quality = "MEDIUM"
-    else:
-        quality = "LOW"
-
-    # Pass threshold: >= 1.5 (intentionally low to get results)
-    passed = score >= 1.5
-
-    # Conviction: 1-10 based on fundamentals + market cap runway
-    conviction = 1
-    if score >= 3.5:
-        conviction += 4
-    elif score >= 2.5:
-        conviction += 3
-    elif score >= 2.0:
-        conviction += 2
-    elif score >= 1.5:
-        conviction += 1
-
-    # Market cap runway bonus (smaller = more 10x potential)
-    if mktcap < 3e9:
-        conviction += 2
-    elif mktcap < 7e9:
-        conviction += 1
-
-    # Revenue growth bonus
-    if rev_growth > 30:
-        conviction += 2
-    elif rev_growth > 15:
-        conviction += 1
-
-    # Profitability bonus
-    if net_margin > 10:
-        conviction += 1
-
-    conviction = min(max(conviction, 1), 10)
-
-    return passed, {
-        "pass": passed,
-        "score": round(score, 1),
-        "quality": quality,
-        "details": details,
-    }, conviction
+    return min(max(int(round(score)), 1), 10)
 
 
 # ─── Scanner Endpoint ────────────────────────────────────────────────────────
 @router.post("/", response_model=ScanResponse)
 async def run_10bagger_scan(request: ScanRequest):
     """
-    10-Bagger Scanner v3
-    - $1B–$25B market cap gate
-    - Growth fundamentals scoring only
-    - No technical check
-    - No Check 3
-    - Uses proven data_fetcher (same as Dashboard)
+    10-Bagger Scanner v4 — FMP-Powered
+    Scans the ENTIRE US market via Financial Modeling Prep API.
+    1. Screener filters ~5000 stocks → ~200-400 in $500M-$10B range (1 API call)
+    2. Batch profiles for company data (4-8 API calls)
+    3. Growth + ratios for top candidates (up to 100 API calls)
+    4. Score and rank by multi-bagger potential
     """
     start = time.time()
     scan_id = str(uuid.uuid4())
 
-    if request.tickers:
-        tickers = [(t, "US") for t in request.tickers]
-    else:
-        tickers = [(t, "US") for t in TENBAGGER_UNIVERSE]
+    if not FMP_KEY:
+        print("[10-BAGGERS] ERROR: FMP_API_KEY not set")
+        return ScanResponse(
+            scan_id=scan_id,
+            scan_date=datetime.now().isoformat(),
+            market="US",
+            stocks_scanned=0,
+            qualifying_count=0,
+            qualifying_stocks=[],
+            scan_duration_ms=0,
+        )
 
-    print(f"[10-BAGGERS v3] Scan start: {len(tickers)} stocks")
+    # ── Step 1: Screener ─────────────────────────────────────────────────
+    print(f"[10-BAGGERS v4] Step 1: FMP Screener ($500M-$10B, NYSE/NASDAQ)...")
+    screener_results = fmp_screener()
+    print(f"[10-BAGGERS v4] Screener returned {len(screener_results)} stocks")
+
+    if not screener_results:
+        return ScanResponse(
+            scan_id=scan_id,
+            scan_date=datetime.now().isoformat(),
+            market="US",
+            stocks_scanned=0,
+            qualifying_count=0,
+            qualifying_stocks=[],
+            scan_duration_ms=round((time.time() - start) * 1000, 1),
+        )
+
+    # Build lookup by symbol
+    screener_map = {s["symbol"]: s for s in screener_results if s.get("symbol")}
+    all_symbols = list(screener_map.keys())
+
+    # ── Step 2: Batch Profiles ───────────────────────────────────────────
+    print(f"[10-BAGGERS v4] Step 2: Fetching profiles for {len(all_symbols)} stocks...")
+    profiles = fmp_batch_profiles(all_symbols)
+    print(f"[10-BAGGERS v4] Got {len(profiles)} profiles")
+
+    # ── Step 3: Growth + Ratios for top candidates ───────────────────────
+    # Sort by smallest market cap first (most runway) and take top 50
+    sorted_symbols = sorted(all_symbols, key=lambda s: screener_map[s].get("marketCap", 0))
+    top_symbols = sorted_symbols[:50]
+
+    print(f"[10-BAGGERS v4] Step 3: Fetching growth + ratios for top {len(top_symbols)} stocks...")
+    growth_data = fmp_batch_growth(top_symbols)
+    ratios_data = fmp_batch_ratios(top_symbols)
+    print(f"[10-BAGGERS v4] Got {len(growth_data)} growth records, {len(ratios_data)} ratio records")
+
+    # ── Step 4: Score and Build Results ───────────────────────────────────
     qualifying: List[QualifyingStock] = []
-    scanned = 0
-    rejected_mktcap = 0
-    rejected_fundamentals = 0
-    sem = asyncio.Semaphore(8)
 
-    async def scan_one(ticker: str, market: str):
-        nonlocal scanned, rejected_mktcap, rejected_fundamentals
-        async with sem:
-            try:
-                loop = asyncio.get_event_loop()
-                data = await loop.run_in_executor(None, data_fetcher.get_stock_data, ticker)
-                if data["current_price"] == 0:
-                    return None
+    for sym in all_symbols:
+        scr = screener_map[sym]
+        prof = profiles.get(sym, {})
+        gro = growth_data.get(sym, {})
+        rat = ratios_data.get(sym, {})
 
-                scanned += 1
-                mktcap = data.get("market_cap", 0) or 0
+        mktcap = scr.get("marketCap", 0) or prof.get("mktCap", 0) or 0
+        price = prof.get("price", 0) or scr.get("price", 0) or 0
+        if price == 0:
+            continue
 
-                # ── MARKET CAP GATE ──────────────────────────────────────
-                if mktcap > 0 and (mktcap < MKTCAP_MIN or mktcap > MKTCAP_MAX):
-                    rejected_mktcap += 1
-                    return None
+        change_pct = prof.get("changesPercentage", 0) or 0
+        sector = scr.get("sector", "") or prof.get("sector", "") or ""
+        company = scr.get("companyName", "") or prof.get("companyName", "") or sym
+        volume = scr.get("volume", 0) or prof.get("volAvg", 0) or 0
 
-                # ── GROWTH FUNDAMENTALS SCORING (rank only, no rejection) ─
-                passed, fund_details, conviction = score_fundamentals(data)
+        # Score
+        conviction = score_stock(scr, prof, rat, gro)
 
-                # ── Data quality ─────────────────────────────────────────
-                if mktcap > 10e9:
-                    dq = "HIGH"
-                elif mktcap > 3e9:
-                    dq = "MEDIUM"
-                else:
-                    dq = "LOW"
+        # Revenue growth (display)
+        rev_growth = gro.get("growthRevenue", 0) or 0
+        gross_margin = rat.get("grossProfitMarginTTM", 0) or 0
+        net_margin = rat.get("netProfitMarginTTM", 0) or 0
+        pe_ratio = rat.get("peRatioTTM", 0) or 0
+        dte = rat.get("debtEquityRatioTTM", 0) or 0
 
-                # ── Stage label from MAs (display only, not a filter) ────
-                ma50 = float(data.get("ma50", 0) or 0)
-                ma200 = float(data.get("ma200", 0) or 0)
-                price = data["current_price"]
-                if ma50 > 0 and ma200 > 0:
-                    if price > ma50 > ma200:
-                        stage = "Uptrend — Above MA50 & MA200"
-                    elif price > ma200:
-                        stage = "Recovery — Above MA200"
-                    elif price > ma50:
-                        stage = "Bouncing — Above MA50"
-                    else:
-                        stage = "Downtrend — Below MAs"
-                else:
-                    stage = "Limited MA Data"
+        # Data quality
+        has_growth = sym in growth_data
+        has_ratios = sym in ratios_data
+        if has_growth and has_ratios:
+            dq = "HIGH"
+        elif has_growth or has_ratios:
+            dq = "MEDIUM"
+        else:
+            dq = "LOW"
 
-                rsi = float(data.get("rsi14", 50) or 50)
-                golden_cross = ma50 > ma200 if ma50 > 0 and ma200 > 0 else False
-                entry_low = price * 0.95
-                entry_high = price * 1.02
-                entry_zone = f"${entry_low:.2f} - ${entry_high:.2f}"
+        # Trend label from profile data
+        w52_range = prof.get("range", "")
+        beta = scr.get("beta", 0) or prof.get("beta", 0) or 0
 
-                print(f"[10-BAGGERS] ✓ {ticker} ${price:.2f} mktcap=${mktcap/1e9:.1f}B fund={fund_details['score']}/4.5 conv={conviction} {fund_details['quality']}")
+        if change_pct > 5:
+            stage = "Strong Momentum"
+        elif change_pct > 0:
+            stage = "Positive Trend"
+        elif change_pct > -5:
+            stage = "Consolidating"
+        else:
+            stage = "Pullback"
 
-                return QualifyingStock(
-                    ticker=ticker,
-                    company_name=data["company_name"],
-                    market=market,
-                    price=price,
-                    market_cap=mktcap,
-                    change_pct=data.get("change_pct", 0.0),
-                    check1_pass=True,
-                    check2_pass=True,
-                    check3_pass=True,
-                    fundamental_verdict=f"{fund_details['quality']} Growth — {fund_details['score']}/4.5",
-                    technical_stage=stage,
-                    smart_money_trigger="N/A",
-                    conviction_score=conviction,
-                    data_quality=dq,
-                    entry_zone=entry_zone,
-                    rsi14=rsi,
-                    ma50=ma50,
-                    ma200=ma200,
-                    golden_cross=golden_cross,
-                    week52_high=float(data.get("week52_high", 0) or 0),
-                    week52_low=float(data.get("week52_low", 0) or 0),
-                    range_pct=0,
-                    revenue_growth=float(data.get("revenue_growth", 0) or 0),
-                    net_margin=float(data.get("net_margin", 0) or 0),
-                    pe_ratio=float(data.get("pe_ratio", 0) or 0),
-                    sector=str(data.get("sector", "")),
-                )
-            except Exception as e:
-                print(f"[10-BAGGERS] Error {ticker}: {e}")
-                return None
+        # Entry zone
+        entry_zone = f"${price*0.95:.2f} - ${price*1.02:.2f}" if price > 0 else "N/A"
 
-    tasks = [scan_one(t, m) for t, m in tickers]
-    results = await asyncio.gather(*tasks)
-    qualifying = [r for r in results if r is not None]
+        # Fundamental verdict
+        if rev_growth > 0.20 and gross_margin > 0.40:
+            verdict = "HIGH Growth — Strong unit economics"
+        elif rev_growth > 0.10:
+            verdict = "MEDIUM Growth — Expanding revenue"
+        elif gross_margin > 0.40:
+            verdict = "MEDIUM Quality — Good margins"
+        else:
+            verdict = "LOW — Early stage or data limited"
+
+        qualifying.append(QualifyingStock(
+            ticker=sym,
+            company_name=company,
+            market="US",
+            price=price,
+            market_cap=mktcap,
+            change_pct=change_pct,
+            check1_pass=True,
+            check2_pass=True,
+            check3_pass=True,
+            fundamental_verdict=verdict,
+            technical_stage=stage,
+            smart_money_trigger="N/A",
+            conviction_score=conviction,
+            data_quality=dq,
+            entry_zone=entry_zone,
+            rsi14=0,
+            ma50=0,
+            ma200=0,
+            golden_cross=False,
+            week52_high=0,
+            week52_low=0,
+            range_pct=0,
+            revenue_growth=rev_growth,
+            net_margin=net_margin,
+            pe_ratio=pe_ratio,
+            sector=sector,
+        ))
+
+    # Sort by conviction (highest first)
+    qualifying.sort(key=lambda x: x.conviction_score, reverse=True)
+
     duration = (time.time() - start) * 1000
-
-    print(f"[10-BAGGERS v3] Done: {scanned} scanned | {rejected_mktcap} rejected (mktcap) | {rejected_fundamentals} rejected (fundamentals) | {len(qualifying)} QUALIFIED | {duration/1000:.1f}s")
+    print(f"[10-BAGGERS v4] COMPLETE: {len(screener_results)} screened | {len(qualifying)} qualified | {duration/1000:.1f}s | API calls: ~{2 + len(profiles)//50 + len(growth_data) + len(ratios_data)}")
 
     return ScanResponse(
         scan_id=scan_id,
         scan_date=datetime.now().isoformat(),
         market="US",
-        stocks_scanned=scanned,
+        stocks_scanned=len(screener_results),
         qualifying_count=len(qualifying),
-        qualifying_stocks=sorted(qualifying, key=lambda x: x.conviction_score, reverse=True),
+        qualifying_stocks=qualifying,
         scan_duration_ms=round(duration, 1),
     )
