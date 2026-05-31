@@ -18,7 +18,7 @@ router = APIRouter()
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 FMP_KEY = os.getenv("FMP_API_KEY", "")
-FMP_BASE = "https://financialmodelingprep.com/api/v3"
+FMP_BASE = "https://financialmodelingprep.com/stable"
 
 # Market cap range
 MKTCAP_MIN = 500_000_000     # $500M floor
