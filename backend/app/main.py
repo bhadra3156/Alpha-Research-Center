@@ -22,7 +22,7 @@ app.add_middleware(
 )
 
 app.include_router(scan.router,       prefix="/scan",           tags=["Scan"])
-app.include_router(scan_10baggers_router, prefix="/scan/10baggers", tags=["10-Baggers"])
+app.include_router(scan_10baggers_router, prefix="/10baggers", tags=["10-Baggers"])
 app.include_router(analyze.router,    prefix="/analyze",        tags=["Analysis"])
 app.include_router(watchlist.router,  prefix="/watchlist",      tags=["Watchlist"])
 app.include_router(portfolio.router,  prefix="/portfolio",      tags=["Portfolio"])
