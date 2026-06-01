@@ -225,3 +225,15 @@ async def run_10bagger_scan(request: ScanRequest):
         qualifying_stocks=qualifying,
         scan_duration_ms=round(duration, 1),
     )
+    @router.get("/test-finviz")
+async def test_finviz():
+    """Quick test: can Render fetch from Finviz?"""
+    try:
+        from finvizfinance.quote import finvizfinance as fvz
+        stock = fvz("AAPL")
+        data = stock.ticker_fundament()
+        print(f"[FINVIZ TEST] AAPL data: {data}")
+        return {"status": "ok", "ticker": "AAPL", "data": data}
+    except Exception as e:
+        print(f"[FINVIZ TEST] FAILED: {e}")
+        return {"status": "error", "error": str(e)}
