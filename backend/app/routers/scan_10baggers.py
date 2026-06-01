@@ -2,8 +2,6 @@
 # AlphaResearch — 10-Baggers Scanner v7 (WORKING)
 # Uses the PROVEN data_fetcher (same as Dashboard — confirmed working)
 # Scores on technical setup: MA50, MA200, RSI, trend, momentum
-# No Yahoo .info calls (blocked from cloud servers)
-# No FMP (screener is paid-only)
 # ─────────────────────────────────────────────────────────────────────────────
 
 from fastapi import APIRouter
@@ -20,30 +18,30 @@ router = APIRouter()
 # ─── Small/Mid-Cap Universe ──────────────────────────────────────────────────
 TENBAGGER_UNIVERSE = [
     # Tech / Software
-    "DOCN","BRZE","SEMR","JAMF","DV","INTA","QTWO","ALRM","GENI",
-    "CFLT","ASAN","MNDY","SMAR","ZI","PAYO","FLYW","VERX","CWAN","RELY",
-    "ACIW","PRGS","INST","SQSP","CARG","PUBM","MGNI","CRTO","FRSH",
-    "DUOL","TOST",
+    "DOCN", "BRZE", "SEMR", "JAMF", "DV", "INTA", "QTWO", "ALRM", "GENI",
+    "CFLT", "ASAN", "MNDY", "SMAR", "ZI", "PAYO", "FLYW", "VERX", "CWAN", "RELY",
+    "ACIW", "PRGS", "INST", "SQSP", "CARG", "PUBM", "MGNI", "CRTO", "FRSH",
+    "DUOL", "TOST",
     # Cybersecurity
-    "TENB","VRNS","QLYS","RPD","NSSC",
+    "TENB", "VRNS", "QLYS", "RPD", "NSSC",
     # Healthcare / Biotech
-    "GDRX","HIMS","INSP","TMDX","CERT","SDGR","NVCR","PGNY","GKOS",
-    "NVST","RVMD","PCVX","KRYS","HALO","AXSM","CORT","SUPN","GMED",
-    "OMCL","PRCT","TGTX","NARI",
+    "GDRX", "HIMS", "INSP", "TMDX", "CERT", "SDGR", "NVCR", "PGNY", "GKOS",
+    "NVST", "RVMD", "PCVX", "KRYS", "HALO", "AXSM", "CORT", "SUPN", "GMED",
+    "OMCL", "PRCT", "TGTX", "NARI",
     # Industrials / Defence
-    "KTOS","RKLB","ATKR","ROAD","PRIM","GMS","STRL","SPXC","ESAB","APOG",
-    "WFRD","XPEL","UFPT","CSWI","MATX","POWL","TDW","SKYW","BWXT",
-    "AZEK","AAON","LNTH",
+    "KTOS", "RKLB", "ATKR", "ROAD", "PRIM", "GMS", "STRL", "SPXC", "ESAB", "APOG",
+    "WFRD", "XPEL", "UFPT", "CSWI", "MATX", "POWL", "TDW", "SKYW", "BWXT",
+    "AZEK", "AAON", "LNTH",
     # Consumer / Retail
-    "SHAK","BROS","SG","WRBY","YETI","CAVA","ELF","CELH","ONON","BIRK",
-    "WING","TXRH","DKS",
+    "SHAK", "BROS", "SG", "WRBY", "YETI", "CAVA", "ELF", "CELH", "ONON", "BIRK",
+    "WING", "TXRH", "DKS",
     # Energy
-    "GPOR","CNX","AROC","AMRC","BE","CEIX","ARCH","SM","MTDR","RRC",
+    "GPOR", "CNX", "AROC", "AMRC", "BE", "CEIX", "ARCH", "SM", "MTDR", "RRC",
     # Fintech
-    "UPST","LC","STEP","SOFI","AFRM","HOOD","VIRT","MKTX","ESNT","NMIH",
+    "UPST", "LC", "STEP", "SOFI", "AFRM", "HOOD", "VIRT", "MKTX", "ESNT", "NMIH",
     # AI / Semiconductors
-    "SOUN","IREN","AMBA","CEVA","AEHR","ONTO","ACLS","RMBS","DIOD",
-    "ALGM","WOLF","SLAB","SITM","POWI",
+    "SOUN", "IREN", "AMBA", "CEVA", "AEHR", "ONTO", "ACLS", "RMBS", "DIOD",
+    "ALGM", "WOLF", "SLAB", "SITM", "POWI",
 ]
 
 TENBAGGER_UNIVERSE = list(dict.fromkeys(TENBAGGER_UNIVERSE))
@@ -51,10 +49,6 @@ TENBAGGER_UNIVERSE = list(dict.fromkeys(TENBAGGER_UNIVERSE))
 
 # ─── Technical Setup Scoring ──────────────────────────────────────────────────
 def score_technical_setup(data: dict) -> int:
-    """
-    Score 1-10 based on technical setup quality.
-    Uses data from the proven data_fetcher (price, MAs, RSI, 52W range).
-    """
     score = 1
     price = data.get("current_price", 0) or 0
     ma50 = data.get("ma50", 0) or 0
@@ -66,33 +60,22 @@ def score_technical_setup(data: dict) -> int:
     if price <= 0:
         return 1
 
-    # Price above MA50 (+2) — short-term uptrend
     if ma50 > 0 and price > ma50:
         score += 2
-
-    # Price above MA200 (+1.5) — long-term uptrend
     if ma200 > 0 and price > ma200:
         score += 1.5
-
-    # Golden cross: MA50 > MA200 (+1) — bullish structure
     if ma50 > 0 and ma200 > 0 and ma50 > ma200:
         score += 1
-
-    # RSI sweet spot: 40-65 (+1) — not overbought, has room to run
     if 40 <= rsi <= 65:
         score += 1
     elif 30 <= rsi < 40:
-        score += 0.5  # Oversold, potential bounce
-
-    # 52-week momentum: within 20% of high (+1)
+        score += 0.5
     if w52h > 0 and w52l > 0 and w52h != w52l:
         pct_from_high = (w52h - price) / w52h
         if pct_from_high < 0.10:
-            score += 1.5  # Near 52W high — strong momentum
+            score += 1.5
         elif pct_from_high < 0.20:
-            score += 1     # Within 20% of high
-
-    # Price above $10 (+0.5) — institutional quality
+            score += 1
     if price >= 10:
         score += 0.5
 
@@ -103,21 +86,21 @@ def score_technical_setup(data: dict) -> int:
 def classify_trend(price, ma50, ma200):
     if ma50 > 0 and ma200 > 0:
         if price > ma50 and ma50 > ma200:
-            return "Strong Uptrend", "text-emerald-400"
+            return "Strong Uptrend"
         elif price > ma50 and price > ma200:
-            return "Uptrend", "text-emerald-400"
+            return "Uptrend"
         elif price > ma200:
-            return "Recovery", "text-amber-400"
+            return "Recovery"
         elif price > ma50:
-            return "Bounce", "text-amber-400"
+            return "Bounce"
         else:
-            return "Downtrend", "text-rose-400"
+            return "Downtrend"
     elif ma50 > 0:
-        return ("Above MA50", "text-amber-400") if price > ma50 else ("Below MA50", "text-rose-400")
-    return "N/A", "text-gray-400"
+        return "Above MA50" if price > ma50 else "Below MA50"
+    return "N/A"
 
 
-# ─── Scanner Endpoint ────────────────────────────────────────────────────────
+# ─── Main Scan Endpoint ──────────────────────────────────────────────────────
 @router.post("/", response_model=ScanResponse)
 async def run_10bagger_scan(request: ScanRequest):
     start = time.time()
@@ -154,17 +137,14 @@ async def run_10bagger_scan(request: ScanRequest):
                 sector = data.get("sector", "") or ""
                 golden_cross = ma50 > ma200 if ma50 > 0 and ma200 > 0 else False
 
-                trend_label, _ = classify_trend(price, ma50, ma200)
+                trend_label = classify_trend(price, ma50, ma200)
 
-                # 52W range position
                 range_pct = 0
                 if w52h > 0 and w52l > 0 and w52h != w52l:
                     range_pct = ((price - w52l) / (w52h - w52l)) * 100
 
-                # Entry zone
                 entry_zone = f"${price*0.95:.2f} - ${price*1.02:.2f}" if price >= 5 else "N/A"
 
-                # Verdict based on technical setup
                 if conviction >= 8:
                     verdict = "Strong setup — Uptrend + Momentum"
                 elif conviction >= 6:
@@ -174,7 +154,6 @@ async def run_10bagger_scan(request: ScanRequest):
                 else:
                     verdict = "Weak — Below key MAs"
 
-                # Data quality (simple since we don't have market cap)
                 dq = "HIGH" if ma50 > 0 and ma200 > 0 and w52h > 0 else "MEDIUM"
 
                 qualifying.append(QualifyingStock(
@@ -225,7 +204,10 @@ async def run_10bagger_scan(request: ScanRequest):
         qualifying_stocks=qualifying,
         scan_duration_ms=round(duration, 1),
     )
-    @router.get("/test-finviz")
+
+
+# ─── Finviz Test Endpoint ────────────────────────────────────────────────────
+@router.get("/test-finviz")
 async def test_finviz():
     """Quick test: can Render fetch from Finviz?"""
     try:
